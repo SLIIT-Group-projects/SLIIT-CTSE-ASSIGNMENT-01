@@ -1,0 +1,116 @@
+services:
+  auth-service:
+    build: ./auth-service
+    ports:
+      - "4001:4001"
+    env_file:
+      - ./auth-service/.env
+    depends_on:
+      - mongo-auth
+    networks:
+      - hm-net
+
+  appointment-service:
+    build: ./appointment-service
+    ports:
+      - "4002:4002"
+    env_file:
+      - ./appointment-service/.env
+    depends_on:
+      - mongo-appointment
+    networks:
+      - hm-net
+
+  doctor-service:
+    build: ./doctor-service
+    ports:
+      - "4003:4003"
+    env_file:
+      - ./doctor-service/.env
+    depends_on:
+      - mongo-doctor
+    networks:
+      - hm-net
+
+  lab-service:
+    build: ./lab-service
+    ports:
+      - "4004:4004"
+    env_file:
+      - ./lab-service/.env
+    depends_on:
+      - mongo-lab
+    networks:
+      - hm-net
+
+  billing-service:
+    build: ./billing-service
+    ports:
+      - "4005:4005"
+    env_file:
+      - ./billing-service/.env
+    depends_on:
+      - mongo-billing
+    networks:
+      - hm-net
+
+  mongo-auth:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo-auth-data:/data/db
+    networks:
+      - hm-net
+
+  mongo-appointment:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27019:27017"
+    volumes:
+      - mongo-appointment-data:/data/db
+    networks:
+      - hm-net
+
+  mongo-doctor:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27020:27017"
+    volumes:
+      - mongo-doctor-data:/data/db
+    networks:
+      - hm-net
+
+  mongo-lab:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27021:27017"
+    volumes:
+      - mongo-lab-data:/data/db
+    networks:
+      - hm-net
+
+  mongo-billing:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27022:27017"
+    volumes:
+      - mongo-billing-data:/data/db
+    networks:
+      - hm-net
+
+networks:
+  hm-net:
+
+volumes:
+  mongo-auth-data:
+  mongo-appointment-data:
+  mongo-doctor-data:
+  mongo-lab-data:
+  mongo-billing-data:
+

@@ -1,0 +1,28 @@
+services:
+  auth-service:
+    build: .
+    ports:
+      - "4001:4001"
+    env_file:
+      - .env
+    depends_on:
+      - mongo-auth
+    networks:
+      - hm-net
+
+  mongo-auth:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo-auth-data:/data/db
+    networks:
+      - hm-net
+
+volumes:
+  mongo-auth-data:
+
+networks:
+  hm-net:
+

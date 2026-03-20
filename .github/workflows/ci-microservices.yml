@@ -1,0 +1,41 @@
+name: CI - Microservices (SAST + Docker build)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - { dir: auth-service, port: 4001 }
+          - { dir: appointment-service, port: 4002 }
+          - { dir: doctor-service, port: 4003 }
+          - { dir: lab-service, port: 4004 }
+          - { dir: billing-service, port: 4005 }
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          cd ${{ matrix.service.dir }}
+          npm ci
+
+      - name: Snyk SAST / Vulnerability Scan
+        if: ${{ secrets.SNYK_TOKEN != '' }}
+        run: |
+          cd ${{ matrix.service.dir }}
+          npx snyk test --all-projects --severity-threshold=medium
+
+      - name: Docker build (service)
+        run: |
+          docker build -t ${{ matrix.service.dir }}:ci ./${{ matrix.service.dir }}

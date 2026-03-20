@@ -1,0 +1,28 @@
+services:
+  appointment-service:
+    build: .
+    ports:
+      - "4002:4002"
+    env_file:
+      - .env
+    depends_on:
+      - mongo-appointment
+    networks:
+      - hm-net
+
+  mongo-appointment:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27019:27017"
+    volumes:
+      - mongo-appointment-data:/data/db
+    networks:
+      - hm-net
+
+volumes:
+  mongo-appointment-data:
+
+networks:
+  hm-net:
+
