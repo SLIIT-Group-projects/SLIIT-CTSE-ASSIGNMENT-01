@@ -89,7 +89,7 @@ export default function AdminPage() {
                       type="button"
                       disabled={busyRef === `${b.billType}:${b.referenceId}`}
                       onClick={() => verifyBill(b, 'BANK_TRANSFER')}
-                      className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 disabled:opacity-50"
+                      className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
                     >
                       Verify Bank Transfer
                     </button>
