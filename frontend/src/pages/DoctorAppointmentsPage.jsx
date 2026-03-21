@@ -19,6 +19,9 @@ export default function DoctorAppointmentsPage() {
   const [labDrafts, setLabDrafts] = useState({});
   const [medicalDrafts, setMedicalDrafts] = useState({});
   const [savingByAppointment, setSavingByAppointment] = useState({});
+  const [dateFilterMode, setDateFilterMode] = useState("TODAY");
+  const [selectedDate, setSelectedDate] = useState("");
+  const [expandedAppointmentId, setExpandedAppointmentId] = useState(null);
 
   async function refreshAppointments() {
     setLoadingAppts(true);
@@ -56,6 +59,23 @@ export default function DoctorAppointmentsPage() {
       }),
     [appointments, clinicalDrafts, labDrafts, medicalDrafts],
   );
+
+  function localDateString(date = new Date()) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  }
+
+  const filteredCards = useMemo(() => {
+    if (dateFilterMode === "ALL") return cards;
+    const targetDate =
+      dateFilterMode === "SELECTED"
+        ? selectedDate
+        : localDateString();
+    if (!targetDate) return cards;
+    return cards.filter(({ a }) => String(a.date || "") === targetDate);
+  }, [cards, dateFilterMode, selectedDate]);
 
   function getMedicalValues(appointmentId) {
     const appt = appointments.find((x) => x._id === appointmentId);
@@ -220,100 +240,183 @@ export default function DoctorAppointmentsPage() {
         <h2 className="text-xl font-semibold text-slate-900">
           Confirmed Appointments
         </h2>
+        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+          <div className="flex flex-wrap items-end gap-2">
+            <button
+              type="button"
+              onClick={() => setDateFilterMode("TODAY")}
+              className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                dateFilterMode === "TODAY"
+                  ? "bg-[#14967F] text-white"
+                  : "bg-[#14967F]/10 text-[#14967F] hover:bg-[#14967F]/20"
+              }`}
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => setDateFilterMode("ALL")}
+              className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+                dateFilterMode === "ALL"
+                  ? "bg-[#14967F] text-white"
+                  : "bg-[#14967F]/10 text-[#14967F] hover:bg-[#14967F]/20"
+              }`}
+            >
+              All Dates
+            </button>
+            <label className="text-sm font-medium text-slate-700">
+              Pick Date
+              <input
+                type="date"
+                className="input-modern"
+                value={selectedDate}
+                onChange={(e) => {
+                  setSelectedDate(e.target.value);
+                  setDateFilterMode("SELECTED");
+                }}
+              />
+            </label>
+          </div>
+        </div>
         <div className="mt-3">
           {loadingAppts ? (
             <LoadingState />
-          ) : cards.length === 0 ? (
+          ) : filteredCards.length === 0 ? (
             <EmptyState
               title="No confirmed appointments"
               subtitle="Appointments will appear once billing is confirmed."
             />
           ) : (
             <div className="space-y-4">
-              {cards.map(({ a, clinical, lab, medical }) => (
+              {filteredCards.map(({ a, clinical, lab, medical }) => {
+                const isExpanded = expandedAppointmentId === a._id;
+                return (
                 <div
                   key={a._id}
                   className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4"
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="w-full">
-                      <div className="text-sm text-slate-600">
-                        Appointment ID
+                  <div
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-3 cursor-pointer"
+                    onClick={() =>
+                      setExpandedAppointmentId((prev) =>
+                        prev === a._id ? null : a._id
+                      )
+                    }
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setExpandedAppointmentId((prev) =>
+                          prev === a._id ? null : a._id
+                        );
+                      }
+                    }}
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-slate-900 truncate">
+                        {a.patient?.name || "Unknown Patient"}
                       </div>
-                      <div className="font-mono text-sm">{a._id}</div>
-                      <div className="mt-1 text-sm">
+                      <div className="text-xs text-slate-500">
                         {a.date} {a.startTime} - {a.endTime}
                       </div>
+                      <div className="text-xs font-mono text-slate-500 truncate">
+                        Appointment: {a._id}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <StatusBadge status={a.status} />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpandedAppointmentId((prev) =>
+                            prev === a._id ? null : a._id
+                          );
+                        }}
+                        aria-label={isExpanded ? "Collapse appointment details" : "Expand appointment details"}
+                        className="flex h-9 w-9 items-center justify-center rounded-full border border-[#14967F]/30 bg-[#14967F]/10 text-[#14967F] transition hover:bg-[#14967F]/20"
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          className={`h-4 w-4 transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
+                          aria-hidden
+                        >
+                          <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
 
-                      <div className="mt-4 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-white p-4">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white font-semibold">
-                            {(a.patient?.name || "P").slice(0, 1).toUpperCase()}
-                          </div>
-                          <div>
-                            <div className="text-sm font-semibold text-slate-900">
-                              {a.patient?.name || "Unknown Patient"}
-                            </div>
-                            <div className="text-xs text-slate-500">
-                              Patient details for this appointment
-                            </div>
-                          </div>
+                  {isExpanded ? (
+                    <>
+                  <div className="mt-4 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 to-white p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white font-semibold">
+                        {(a.patient?.name || "P").slice(0, 1).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">
+                          {a.patient?.name || "Unknown Patient"}
                         </div>
-
-                        <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
-                          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                            <div className="text-[11px] uppercase tracking-wide text-slate-400">
-                              Patient ID
-                            </div>
-                            <div className="mt-0.5 text-sm font-mono text-slate-700 break-all">
-                              {String(a.patientId || "")}
-                            </div>
-                          </div>
-                          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                            <div className="text-[11px] uppercase tracking-wide text-slate-400">
-                              Email
-                            </div>
-                            <div className="mt-0.5 text-sm text-slate-700 break-all">
-                              {a.patient?.email || "N/A"}
-                            </div>
-                          </div>
-                          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                            <div className="text-[11px] uppercase tracking-wide text-slate-400">
-                              Age
-                            </div>
-                            <div className="mt-0.5 text-sm text-slate-700">
-                              {a.patient?.medicalProfile?.age ?? "N/A"}
-                            </div>
-                          </div>
-                          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                            <div className="text-[11px] uppercase tracking-wide text-slate-400">
-                              Blood Group
-                            </div>
-                            <div className="mt-0.5 text-sm text-slate-700">
-                              {a.patient?.medicalProfile?.bloodGroup || "N/A"}
-                            </div>
-                          </div>
-                          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                            <div className="text-[11px] uppercase tracking-wide text-slate-400">
-                              Height (cm)
-                            </div>
-                            <div className="mt-0.5 text-sm text-slate-700">
-                              {a.patient?.medicalProfile?.heightCm ?? "N/A"}
-                            </div>
-                          </div>
-                          <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
-                            <div className="text-[11px] uppercase tracking-wide text-slate-400">
-                              Weight (kg)
-                            </div>
-                            <div className="mt-0.5 text-sm text-slate-700">
-                              {a.patient?.medicalProfile?.weightKg ?? "N/A"}
-                            </div>
-                          </div>
+                        <div className="text-xs text-slate-500">
+                          Patient details for this appointment
                         </div>
                       </div>
                     </div>
-                    <div>
-                      <StatusBadge status={a.status} />
+
+                    <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                          Patient ID
+                        </div>
+                        <div className="mt-0.5 text-sm font-mono text-slate-700 break-all">
+                          {String(a.patientId || "")}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                          Email
+                        </div>
+                        <div className="mt-0.5 text-sm text-slate-700 break-all">
+                          {a.patient?.email || "N/A"}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                          Age
+                        </div>
+                        <div className="mt-0.5 text-sm text-slate-700">
+                          {a.patient?.medicalProfile?.age ?? "N/A"}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                          Blood Group
+                        </div>
+                        <div className="mt-0.5 text-sm text-slate-700">
+                          {a.patient?.medicalProfile?.bloodGroup || "N/A"}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                          Height (cm)
+                        </div>
+                        <div className="mt-0.5 text-sm text-slate-700">
+                          {a.patient?.medicalProfile?.heightCm ?? "N/A"}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-400">
+                          Weight (kg)
+                        </div>
+                        <div className="mt-0.5 text-sm text-slate-700">
+                          {a.patient?.medicalProfile?.weightKg ?? "N/A"}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -570,8 +673,10 @@ export default function DoctorAppointmentsPage() {
                         : "Submit Doctor Update"}
                     </PrimaryButton>
                   </div>
+                  </>
+                  ) : null}
                 </div>
-              ))}
+              )})}
             </div>
           )}
         </div>

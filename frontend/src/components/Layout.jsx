@@ -12,6 +12,7 @@ function navForRole(role) {
   if (role === 'DOCTOR') {
     nav.push({ to: '/doctor', label: 'Doctor Availability', icon: 'stethoscope' });
     nav.push({ to: '/doctor/appointments', label: 'Confirmed Appointments', icon: 'calendar' });
+    nav.push({ to: '/doctor/lab-reports', label: 'Lab Reports', icon: 'report' });
     nav.push({ to: '/doctor/history', label: 'Appointment History', icon: 'history' });
     nav.push({ to: '/doctor/details', label: 'Doctor Details', icon: 'id' });
   }

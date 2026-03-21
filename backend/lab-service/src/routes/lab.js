@@ -292,4 +292,37 @@ router.get('/lab/reports', requireAuth, requireRole('PATIENT'), async (req, res)
   });
 });
 
+/**
+ * GET /lab/internal/doctor-reports/:doctorId
+ * Internal endpoint for doctor-service to fetch completed reports of one doctor.
+ */
+router.get('/lab/internal/doctor-reports/:doctorId', requireInternal, async (req, res) => {
+  const doctorId = String(req.params.doctorId || '').trim();
+  if (!doctorId) return res.status(400).json({ message: 'doctorId is required' });
+
+  const requests = await LabRequest.find({
+    doctorId,
+    reportUrl: { $ne: null },
+    labStatus: 'COMPLETED',
+  })
+    .sort({ uploadedAt: -1, createdAt: -1 })
+    .lean();
+
+  return res.json({
+    labReports: requests.map((r) => ({
+      id: r._id.toString(),
+      appointmentId: r.appointmentId,
+      patientId: r.patientId,
+      doctorId: r.doctorId,
+      testName: r.testName,
+      reportUrl: r.reportUrl,
+      reportRemarks: r.reportRemarks || '',
+      uploadedAt: r.uploadedAt,
+      createdAt: r.createdAt,
+      paymentStatus: r.paymentStatus,
+      labStatus: r.labStatus || 'COMPLETED',
+    })),
+  });
+});
+
 module.exports = router;

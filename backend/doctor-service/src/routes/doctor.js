@@ -313,6 +313,54 @@ router.get('/doctor/history', requireAuth, requireRole('DOCTOR'), async (req, re
 });
 
 /**
+ * GET /doctor/lab-reports
+ * Doctor views completed lab reports created from their requested tests.
+ */
+router.get('/doctor/lab-reports', requireAuth, requireRole('DOCTOR'), async (req, res) => {
+  const doctorId = req.user.userId;
+
+  const labResp = await axios.get(`${config.labServiceBaseUrl}/lab/internal/doctor-reports/${doctorId}`, {
+    headers: {
+      'x-internal-token': config.internalServiceToken,
+      'Content-Type': 'application/json',
+    },
+    timeout: 10000,
+  });
+
+  const reports = labResp.data?.labReports || [];
+  const userIds = [...new Set([doctorId, ...reports.map((r) => normalizeId(r.patientId)).filter(Boolean)])];
+
+  let userMap = {};
+  if (userIds.length > 0) {
+    try {
+      const usersResp = await axios.post(
+        `${config.authServiceBaseUrl}/auth/users/bulk`,
+        { ids: userIds },
+        {
+          headers: {
+            'x-internal-token': config.internalServiceToken,
+            'Content-Type': 'application/json',
+          },
+          timeout: 10000,
+        }
+      );
+      const users = usersResp.data?.users || [];
+      userMap = Object.fromEntries(users.map((u) => [normalizeId(u.id), u]));
+    } catch {
+      userMap = {};
+    }
+  }
+
+  return res.json({
+    labReports: reports.map((r) => ({
+      ...r,
+      patient: userMap[normalizeId(r.patientId)] || null,
+      doctor: userMap[normalizeId(r.doctorId)] || null,
+    })),
+  });
+});
+
+/**
  * GET /doctor/clinical/patient
  * Patient views prescriptions (clinical records).
  */

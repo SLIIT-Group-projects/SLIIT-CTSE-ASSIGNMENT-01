@@ -15,6 +15,7 @@ export default function DashboardPage() {
   }
   if (role === 'DOCTOR') {
     cards.push({ to: '/doctor', title: 'Doctor Console', desc: 'Schedules, clinical notes & lab requests' });
+    cards.push({ to: '/doctor/lab-reports', title: 'Completed Lab Reports', desc: 'View patient completed reports with doctor details' });
   }
   if (role === 'LAB_TECH') {
     cards.push({ to: '/lab', title: 'Lab queue', desc: 'Pending requests — start processing and upload reports' });
