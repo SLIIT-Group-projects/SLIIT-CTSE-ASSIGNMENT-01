@@ -112,19 +112,19 @@ export default function DoctorAppointmentsPage() {
     }
     setSavingByAppointment((prev) => ({ ...prev, [appointmentId]: true }));
     try {
-      // Step 1: always save clinical notes + prescription.
-      await doctorApi.put(`/doctor/appointments/${appointmentId}/clinical`, {
-        notes: draft?.notes || '',
-        prescription: draft?.prescription || '',
-      });
-
-      // Step 2: optional lab request based on selected mode.
+      // Step 1: optional lab request must happen while appointment is still CONFIRMED.
       if (mode !== 'NONE') {
         await doctorApi.post(`/doctor/appointments/${appointmentId}/lab-request`, {
           testName: lab.testName,
           notes: lab.notes || '',
         });
       }
+
+      // Step 2: save clinical notes + prescription (this marks appointment COMPLETED in backend).
+      await doctorApi.put(`/doctor/appointments/${appointmentId}/clinical`, {
+        notes: draft?.notes || '',
+        prescription: draft?.prescription || '',
+      });
 
       setClinicalDrafts((prev) => ({ ...prev, [appointmentId]: { notes: '', prescription: '' } }));
       setLabDrafts((prev) => ({ ...prev, [appointmentId]: { mode: 'NONE', testName: '', notes: '' } }));
