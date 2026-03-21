@@ -3,6 +3,7 @@ const axios = require('axios');
 const { z } = require('zod');
 
 const ClinicalRecord = require('../models/ClinicalRecord');
+const DoctorProfile = require('../models/DoctorProfile');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const config = require('../config');
 
@@ -11,6 +12,83 @@ const router = express.Router();
 const clinicalSchema = z.object({
   notes: z.string().max(20000).optional().default(''),
   prescription: z.string().max(20000).optional().default(''),
+});
+
+const doctorProfileSchema = z.object({
+  name: z.string().trim().min(2).max(120),
+  workingHospital: z.string().trim().min(2).max(160),
+  speciality: z.string().trim().min(2).max(120),
+  consultationCharge: z.number().min(0).max(1000000),
+  bio: z.string().max(2000).optional().default(''),
+  phone: z.string().max(40).optional().default(''),
+});
+
+/**
+ * GET /doctor/profiles
+ * Patient reads doctor profiles (optionally filtered by doctor IDs).
+ * Query:
+ *   - ids=comma,separated,doctorIds
+ */
+router.get('/doctor/profiles', requireAuth, requireRole('PATIENT'), async (req, res) => {
+  const idsRaw = String(req.query.ids || '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
+  const ids = idsRaw.filter((id) => /^[a-fA-F0-9]{24}$/.test(id));
+
+  const query = ids.length > 0 ? { doctorId: { $in: ids } } : {};
+  const profiles = await DoctorProfile.find(query).sort({ updatedAt: -1 }).lean();
+
+  return res.json({
+    profiles: profiles.map((p) => ({
+      doctorId: p.doctorId.toString(),
+      name: p.name,
+      workingHospital: p.workingHospital,
+      speciality: p.speciality,
+      consultationCharge:
+        typeof p.consultationCharge === 'number' && Number.isFinite(p.consultationCharge)
+          ? p.consultationCharge
+          : 500,
+      bio: p.bio || '',
+      phone: p.phone || '',
+      updatedAt: p.updatedAt,
+    })),
+  });
+});
+
+/**
+ * GET /doctor/profile
+ * Doctor reads own profile details.
+ */
+router.get('/doctor/profile', requireAuth, requireRole('DOCTOR'), async (req, res) => {
+  const profile = await DoctorProfile.findOne({ doctorId: req.user.userId }).lean();
+  return res.json({ profile });
+});
+
+/**
+ * PUT /doctor/profile
+ * Doctor creates/updates own profile details.
+ */
+router.put('/doctor/profile', requireAuth, requireRole('DOCTOR'), async (req, res) => {
+  const parsed = doctorProfileSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid payload', errors: parsed.error.flatten() });
+
+  const payload = parsed.data;
+  const profile = await DoctorProfile.findOneAndUpdate(
+    { doctorId: req.user.userId },
+    {
+      doctorId: req.user.userId,
+      name: payload.name,
+      workingHospital: payload.workingHospital,
+      speciality: payload.speciality,
+      consultationCharge: payload.consultationCharge,
+      bio: payload.bio,
+      phone: payload.phone,
+    },
+    { new: true, upsert: true }
+  );
+
+  return res.json({ profile });
 });
 
 /**

@@ -9,7 +9,10 @@ function navForRole(role) {
     nav.push({ to: '/billing', label: 'Billing', icon: 'wallet' });
     nav.push({ to: '/lab', label: 'Lab Reports', icon: 'report' });
   }
-  if (role === 'DOCTOR') nav.push({ to: '/doctor', label: 'Doctor Panel', icon: 'stethoscope' });
+  if (role === 'DOCTOR') {
+    nav.push({ to: '/doctor', label: 'Doctor Panel', icon: 'stethoscope' });
+    nav.push({ to: '/doctor/details', label: 'Doctor Details', icon: 'id' });
+  }
   if (role === 'LAB_TECH') nav.push({ to: '/lab', label: 'Lab Panel', icon: 'flask' });
   if (role === 'ADMIN') nav.push({ to: '/admin', label: 'Admin Panel', icon: 'shield' });
   return nav;
@@ -59,6 +62,15 @@ function Icon({ type }) {
     return (
       <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z" />
+      </svg>
+    );
+  }
+  if (type === 'id') {
+    return (
+      <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <circle cx="8" cy="12" r="2" />
+        <path d="M12 10h6M12 14h6" />
       </svg>
     );
   }

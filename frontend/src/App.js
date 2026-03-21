@@ -7,7 +7,9 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import AppointmentsPage from './pages/AppointmentsPage';
+import AppointmentDoctorSessionsPage from './pages/AppointmentDoctorSessionsPage';
 import DoctorPage from './pages/DoctorPage';
+import DoctorDetailsPage from './pages/DoctorDetailsPage';
 import LabPage from './pages/LabPage';
 import BillingPage from './pages/BillingPage';
 import AdminPage from './pages/AdminPage';
@@ -39,11 +41,31 @@ export default function App() {
         }
       />
       <Route
+        path="/appointments/doctor/:doctorId"
+        element={
+          <RequireRole roles={['PATIENT']}>
+            <Layout>
+              <AppointmentDoctorSessionsPage />
+            </Layout>
+          </RequireRole>
+        }
+      />
+      <Route
         path="/doctor"
         element={
           <RequireRole roles={['DOCTOR']}>
             <Layout>
               <DoctorPage />
+            </Layout>
+          </RequireRole>
+        }
+      />
+      <Route
+        path="/doctor/details"
+        element={
+          <RequireRole roles={['DOCTOR']}>
+            <Layout>
+              <DoctorDetailsPage />
             </Layout>
           </RequireRole>
         }

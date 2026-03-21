@@ -1,30 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { appointmentApi, billingApi, doctorApi, labApi } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
 import { useToast } from '../components/ToastProvider';
-import { EmptyState, PageHero, PrimaryButton, SoftButton, SurfaceCard } from '../components/ui';
-
-// NOTE: this file imports from './api' to keep imports consistent across pages.
-
-function todayISO() {
-  const d = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
+import { EmptyState, PageHero, SoftButton, SurfaceCard } from '../components/ui';
 
 export default function AppointmentsPage() {
+  const navigate = useNavigate();
   const { notify } = useToast();
   const [doctors, setDoctors] = useState([]);
-  const [doctorId, setDoctorId] = useState('');
-  const [date, setDate] = useState(todayISO());
-  const [slots, setSlots] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [doctorProfiles, setDoctorProfiles] = useState([]);
 
   const [appointments, setAppointments] = useState([]);
   const [prescriptions, setPrescriptions] = useState([]);
   const [labReports, setLabReports] = useState([]);
-
-  const canBook = doctorId && date;
 
   async function refreshAll() {
     const [apptResp, prescResp, labResp] = await Promise.all([
@@ -37,21 +26,26 @@ export default function AppointmentsPage() {
     setLabReports(labResp.data.labReports || []);
   }
 
-  async function loadDoctors() {
-    const resp = await appointmentApi.get('/doctors');
-    setDoctors(resp.data.doctors || []);
-    if (!doctorId && resp.data.doctors?.[0]) setDoctorId(resp.data.doctors[0]);
+  async function loadDoctorProfiles(doctorIds) {
+    if (!doctorIds?.length) {
+      setDoctorProfiles([]);
+      return;
+    }
+    try {
+      const resp = await doctorApi.get('/doctor/profiles', {
+        params: { ids: doctorIds.join(',') },
+      });
+      setDoctorProfiles(resp.data?.profiles || []);
+    } catch (_e) {
+      setDoctorProfiles([]);
+    }
   }
 
-  async function loadSlots() {
-    if (!canBook) return;
-    setLoading(true);
-    try {
-      const resp = await appointmentApi.get(`/doctors/${doctorId}/available-slots?date=${encodeURIComponent(date)}`);
-      setSlots(resp.data.slots || []);
-    } finally {
-      setLoading(false);
-    }
+  async function loadDoctors() {
+    const resp = await appointmentApi.get('/doctors');
+    const ids = resp.data.doctors || [];
+    setDoctors(ids);
+    await loadDoctorProfiles(ids);
   }
 
   useEffect(() => {
@@ -60,26 +54,9 @@ export default function AppointmentsPage() {
   }, []);
 
   useEffect(() => {
-    loadSlots().catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doctorId, date]);
-
-  useEffect(() => {
     refreshAll().catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  async function book(slotStart) {
-    try {
-      const payload = { doctorId, date, slotStart };
-      await appointmentApi.post('/appointments', payload);
-      await refreshAll();
-      await loadSlots();
-      notify('Appointment booked successfully', 'success');
-    } catch (_e) {
-      notify('Failed to book appointment', 'error');
-    }
-  }
 
   async function uploadSlip(appointment, file) {
     try {
@@ -96,6 +73,30 @@ export default function AppointmentsPage() {
   }
 
   const groupedPrescriptions = useMemo(() => prescriptions || [], [prescriptions]);
+  const doctorProfileMap = useMemo(() => {
+    const map = new Map();
+    doctorProfiles.forEach((p) => map.set(String(p.doctorId), p));
+    return map;
+  }, [doctorProfiles]);
+
+  const doctorCards = useMemo(
+    () =>
+      doctors.map((id) => {
+        const p = doctorProfileMap.get(String(id));
+        return {
+          doctorId: String(id),
+          name: p?.name || 'Doctor profile not added',
+          speciality: p?.speciality || 'Not specified',
+          workingHospital: p?.workingHospital || 'Hospital not specified',
+          consultationCharge: Number.isFinite(Number(p?.consultationCharge)) ? Number(p.consultationCharge) : 500,
+        };
+      }),
+    [doctors, doctorProfileMap]
+  );
+
+  function openDoctorSessions(id) {
+    navigate(`/appointments/doctor/${id}`);
+  }
 
   return (
     <div className="space-y-6">
@@ -105,49 +106,26 @@ export default function AppointmentsPage() {
       />
 
       <SurfaceCard>
-        <h2 className="text-xl font-semibold text-slate-900">Book an Appointment</h2>
-        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div>
-            <label className="text-sm text-slate-700">Doctor</label>
-            <select className="input-modern" value={doctorId} onChange={(e) => setDoctorId(e.target.value)}>
-              {doctors.map((d) => (
-                <option key={d} value={d}>
-                  {d}
-                </option>
-              ))}
-              {doctors.length === 0 ? <option value="">No doctors yet</option> : null}
-            </select>
-          </div>
-          <div>
-            <label className="text-sm text-slate-700">Date</label>
-            <input className="input-modern" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </div>
-          <div className="flex items-end">
-            <PrimaryButton
-              type="button"
-              onClick={() => loadSlots()}
-              className="w-full disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!canBook || loading}
-            >
-              {loading ? 'Loading...' : 'View Available Slots'}
-            </PrimaryButton>
-          </div>
-        </div>
-
+        <h2 className="text-xl font-semibold text-slate-900">Choose Your Doctor</h2>
+        <p className="mt-1 text-sm text-slate-500">Click a doctor profile to open upcoming sessions and confirm booking.</p>
         <div className="mt-4">
-          <div className="mb-2 text-sm text-slate-500">Available slots</div>
-          {slots.length === 0 ? (
-            <EmptyState title="No slots available" subtitle="No slots found for selected doctor/date." />
+          {doctorCards.length === 0 ? (
+            <EmptyState title="No doctors found" subtitle="No available doctors were found yet." />
           ) : (
-            <div className="flex flex-wrap gap-2">
-              {slots.map((s) => (
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {doctorCards.map((d) => (
                 <button
-                  key={`${s.start}-${s.end}`}
+                  key={d.doctorId}
                   type="button"
-                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:-translate-y-0.5 hover:border-blue-300 hover:text-blue-700"
-                  onClick={() => book(s.start)}
+                  onClick={() => openDoctorSessions(d.doctorId)}
+                  className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#14967F]/40 hover:bg-[#14967F]/5 hover:ring-1 hover:ring-[#14967F]/20"
                 >
-                  {s.start} - {s.end}
+                  <div className="text-base font-semibold text-[#191919]">{d.name}</div>
+                  <div className="mt-1 inline-flex rounded-full bg-[#FAD069]/40 px-2.5 py-1 text-xs font-semibold text-[#72560f]">
+                    {d.speciality}
+                  </div>
+                  <div className="mt-2 text-sm text-[#A3A3A3]">{d.workingHospital}</div>
+                  <div className="mt-2 text-sm font-semibold text-[#14967F]">Charge: LKR {d.consultationCharge}</div>
                 </button>
               ))}
             </div>
