@@ -13,7 +13,8 @@ function normalizeId(value) {
   if (!value) return '';
   if (typeof value === 'string') return value;
   if (typeof value === 'object' && value.$oid) return String(value.$oid);
-  if (typeof value === 'object' && value._id) return normalizeId(value._id);
+  if (typeof value === 'object' && value._bsontype === 'ObjectId') return value.toString();
+  if (typeof value === 'object' && value._id && value._id !== value) return normalizeId(value._id);
   try {
     return String(value);
   } catch {
@@ -266,6 +267,49 @@ router.post('/doctor/appointments/:id/lab-request', requireAuth, requireRole('DO
   );
 
   return res.status(201).json(labResp.data);
+});
+
+/**
+ * GET /doctor/history
+ * Doctor views previously updated clinical records with patient details.
+ */
+router.get('/doctor/history', requireAuth, requireRole('DOCTOR'), async (req, res) => {
+  const records = await ClinicalRecord.find({ doctorId: req.user.userId }).sort({ createdAt: -1 }).lean();
+
+  const patientIds = [...new Set(records.map((r) => normalizeId(r.patientId)).filter(Boolean))];
+  let patientMap = {};
+  if (patientIds.length > 0) {
+    try {
+      const usersResp = await axios.post(
+        `${config.authServiceBaseUrl}/auth/users/bulk`,
+        { ids: patientIds },
+        {
+          headers: {
+            'x-internal-token': config.internalServiceToken,
+            'Content-Type': 'application/json',
+          },
+          timeout: 10000,
+        }
+      );
+      const users = usersResp.data?.users || [];
+      patientMap = Object.fromEntries(users.map((u) => [normalizeId(u.id), u]));
+    } catch {
+      patientMap = {};
+    }
+  }
+
+  return res.json({
+    records: records.map((r) => ({
+      id: r._id.toString(),
+      appointmentId: normalizeId(r.appointmentId),
+      patientId: normalizeId(r.patientId),
+      patient: patientMap[normalizeId(r.patientId)] || null,
+      notes: r.notes || '',
+      prescription: r.prescription || '',
+      consultedAt: r.createdAt,
+      updatedAt: r.updatedAt,
+    })),
+  });
 });
 
 /**

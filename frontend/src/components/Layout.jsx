@@ -12,6 +12,7 @@ function navForRole(role) {
   if (role === 'DOCTOR') {
     nav.push({ to: '/doctor', label: 'Doctor Availability', icon: 'stethoscope' });
     nav.push({ to: '/doctor/appointments', label: 'Confirmed Appointments', icon: 'calendar' });
+    nav.push({ to: '/doctor/history', label: 'Appointment History', icon: 'history' });
     nav.push({ to: '/doctor/details', label: 'Doctor Details', icon: 'id' });
   }
   if (role === 'LAB_TECH') nav.push({ to: '/lab', label: 'Lab Panel', icon: 'flask' });
@@ -72,6 +73,14 @@ function Icon({ type }) {
         <rect x="3" y="5" width="18" height="14" rx="2" />
         <circle cx="8" cy="12" r="2" />
         <path d="M12 10h6M12 14h6" />
+      </svg>
+    );
+  }
+  if (type === 'history') {
+    return (
+      <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path d="M3 12a9 9 0 1 0 3-6.7" />
+        <path d="M3 3v5h5M12 7v6l4 2" />
       </svg>
     );
   }
