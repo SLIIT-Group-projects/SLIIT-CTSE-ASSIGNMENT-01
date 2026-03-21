@@ -15,10 +15,6 @@ const router = express.Router();
 const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'previous-reports');
 fs.mkdirSync(uploadsDir, { recursive: true });
 
-function isObjectId(value) {
-  return typeof value === 'string' && /^[a-fA-F0-9]{24}$/.test(value);
-}
-
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadsDir),
   filename: (_req, file, cb) => {
@@ -262,7 +258,6 @@ router.post('/appointments/:id/previous-reports', requireAuth, requireRole('PATI
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ message: 'Invalid payload', errors: parsed.error.flatten() });
 
-  if (!isObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid appointment id' });
   const appointment = await Appointment.findById(req.params.id);
   if (!appointment) return res.status(404).json({ message: 'Appointment not found' });
   if (appointment.patientId.toString() !== req.user.userId) return res.status(403).json({ message: 'Forbidden' });
@@ -287,7 +282,6 @@ router.post(
   requireRole('PATIENT'),
   uploadReport.single('report'),
   async (req, res) => {
-    if (!isObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid appointment id' });
     const appointment = await Appointment.findById(req.params.id);
     if (!appointment) return res.status(404).json({ message: 'Appointment not found' });
     if (appointment.patientId.toString() !== req.user.userId) return res.status(403).json({ message: 'Forbidden' });
@@ -310,7 +304,6 @@ router.post(
  */
 router.put('/appointments/confirm/:id', requireInternal, async (req, res) => {
   const appointmentId = req.params.id;
-  if (!isObjectId(appointmentId)) return res.status(400).json({ message: 'Invalid appointment id' });
   const appointment = await Appointment.findById(appointmentId);
   if (!appointment) return res.status(404).json({ message: 'Appointment not found' });
   if (appointment.status !== 'PENDING_PAYMENT') return res.status(409).json({ message: `Cannot confirm from status ${appointment.status}` });
@@ -325,7 +318,6 @@ router.put('/appointments/confirm/:id', requireInternal, async (req, res) => {
  * Mark appointment as completed after consultation (Doctor Service will call this).
  */
 router.put('/appointments/:id/complete', requireAuth, requireRole('DOCTOR'), async (req, res) => {
-  if (!isObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid appointment id' });
   const appointment = await Appointment.findById(req.params.id);
   if (!appointment) return res.status(404).json({ message: 'Appointment not found' });
   if (appointment.doctorId.toString() !== req.user.userId) return res.status(403).json({ message: 'Forbidden' });
@@ -364,7 +356,6 @@ router.get('/doctor/appointments', requireAuth, requireRole('DOCTOR'), async (re
  * Shared for doctor and patient to view appointment details.
  */
 router.get('/appointments/:id', requireAuth, async (req, res) => {
-  if (!isObjectId(req.params.id)) return res.status(400).json({ message: 'Invalid appointment id' });
   const appointment = await Appointment.findById(req.params.id).lean();
   if (!appointment) return res.status(404).json({ message: 'Appointment not found' });
 
