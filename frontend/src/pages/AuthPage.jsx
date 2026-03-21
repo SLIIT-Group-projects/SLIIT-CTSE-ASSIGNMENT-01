@@ -86,7 +86,6 @@ export default function AuthPage({ initialMode }) {
       fieldErrors.password = 'Password must be at least 8 characters.';
     }
     if (!roles.includes(role)) fieldErrors.role = 'Invalid role selected.';
-
     if (Object.keys(fieldErrors).length > 0) {
       setRegisterFieldErrors(fieldErrors);
       setRegisterError('Please correct the highlighted fields.');
@@ -94,7 +93,8 @@ export default function AuthPage({ initialMode }) {
     }
 
     try {
-      await authApi.post('/auth/register', { name, email: registerEmail, password: registerPassword, role });
+      const payload = { name, email: registerEmail, password: registerPassword, role };
+      await authApi.post('/auth/register', payload);
       setRegisterSuccess('Account created. Please login.');
       notify('Account created successfully', 'success');
       window.setTimeout(() => onSwitchToLogin(), 500);

@@ -10,12 +10,21 @@ const { jwtSecret, jwtExpiresIn } = require('../config');
 const router = express.Router();
 
 const roles = ['PATIENT', 'DOCTOR', 'LAB_TECH', 'ADMIN'];
+const bloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
 
 const registerSchema = z.object({
   name: z.string().min(2).max(100),
   email: z.string().email().max(150),
   password: z.string().min(8).max(256),
   role: z.enum(roles),
+  medicalProfile: z
+    .object({
+      age: z.number().int().min(0).max(130),
+      heightCm: z.number().min(30).max(300),
+      weightKg: z.number().min(1).max(500),
+      bloodGroup: z.enum(bloodGroups),
+    })
+    .optional(),
 });
 
 const loginSchema = z.object({
@@ -31,13 +40,19 @@ router.post('/register', async (req, res) => {
   const parsed = registerSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ message: 'Invalid payload', errors: parsed.error.flatten() });
 
-  const { name, email, password, role } = parsed.data;
+  const { name, email, password, role, medicalProfile } = parsed.data;
 
   const existing = await User.findOne({ email });
   if (existing) return res.status(409).json({ message: 'Email already registered' });
 
   const passwordHash = await bcrypt.hash(password, 10);
-  const user = await User.create({ name, email, passwordHash, role });
+  const user = await User.create({
+    name,
+    email,
+    passwordHash,
+    role,
+    medicalProfile: role === 'PATIENT' ? medicalProfile : undefined,
+  });
 
   return res.status(201).json({ id: user._id, role: user.role, name: user.name });
 });
@@ -73,9 +88,17 @@ router.post('/login', async (req, res) => {
  */
 router.post('/verify', requireAuth, async (req, res) => {
   const { userId, role } = req.user;
-  const user = await User.findById(userId).select('_id name email role');
+  const user = await User.findById(userId).select('_id name email role medicalProfile');
   if (!user) return res.status(401).json({ message: 'User not found' });
-  return res.json({ user: { id: user._id, name: user.name, email: user.email, role } });
+  return res.json({
+    user: {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role,
+      medicalProfile: user.medicalProfile || null,
+    },
+  });
 });
 
 // Convenience for service debugging (not used by the frontend).
@@ -103,15 +126,39 @@ router.post('/users/bulk', requireInternal, async (req, res) => {
   if (!parsed.success) return res.status(400).json({ message: 'Invalid payload', errors: parsed.error.flatten() });
 
   const ids = parsed.data.ids;
-  const users = await User.find({ _id: { $in: ids } }).select('_id name email role').lean();
+  const users = await User.find({ _id: { $in: ids } }).select('_id name email role medicalProfile').lean();
   return res.json({
     users: users.map((u) => ({
       id: u._id.toString(),
       name: u.name,
       email: u.email,
       role: u.role,
+      medicalProfile: u.medicalProfile || null,
     })),
   });
+});
+
+/**
+ * PUT /auth/users/:id/medical
+ * Internal endpoint to update patient medical details.
+ */
+router.put('/users/:id/medical', requireInternal, async (req, res) => {
+  const schema = z.object({
+    age: z.number().int().min(0).max(130),
+    heightCm: z.number().min(30).max(300),
+    weightKg: z.number().min(1).max(500),
+    bloodGroup: z.enum(bloodGroups),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid payload', errors: parsed.error.flatten() });
+
+  const user = await User.findById(req.params.id);
+  if (!user) return res.status(404).json({ message: 'User not found' });
+  if (user.role !== 'PATIENT') return res.status(400).json({ message: 'Medical profile is only applicable for PATIENT role' });
+
+  user.medicalProfile = parsed.data;
+  await user.save();
+  return res.json({ ok: true, user: { id: user._id.toString(), medicalProfile: user.medicalProfile } });
 });
 
 module.exports = router;

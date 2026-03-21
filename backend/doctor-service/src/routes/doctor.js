@@ -35,6 +35,13 @@ const doctorProfileSchema = z.object({
   phone: z.string().max(40).optional().default(''),
 });
 
+const patientMedicalSchema = z.object({
+  age: z.number().int().min(0).max(130),
+  heightCm: z.number().min(30).max(300),
+  weightKg: z.number().min(1).max(500),
+  bloodGroup: z.enum(['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']),
+});
+
 /**
  * GET /doctor/profiles
  * Patient reads doctor profiles (optionally filtered by doctor IDs).
@@ -145,6 +152,29 @@ router.get('/doctor/appointments', requireAuth, requireRole('DOCTOR'), async (re
   }));
 
   return res.json({ appointments: enriched });
+});
+
+/**
+ * PUT /doctor/patients/:id/medical
+ * Doctor updates patient medical details in Auth Service.
+ */
+router.put('/doctor/patients/:id/medical', requireAuth, requireRole('DOCTOR'), async (req, res) => {
+  const parsed = patientMedicalSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid payload', errors: parsed.error.flatten() });
+
+  const resp = await axios.put(
+    `${config.authServiceBaseUrl}/auth/users/${req.params.id}/medical`,
+    parsed.data,
+    {
+      headers: {
+        'x-internal-token': config.internalServiceToken,
+        'Content-Type': 'application/json',
+      },
+      timeout: 10000,
+    }
+  );
+
+  return res.json(resp.data);
 });
 
 /**
