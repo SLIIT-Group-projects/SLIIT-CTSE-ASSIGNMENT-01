@@ -14,5 +14,6 @@ module.exports = {
   mongodbUri: required('MONGODB_URI'),
   jwtSecret: required('JWT_SECRET'),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  internalServiceToken: required('INTERNAL_SERVICE_TOKEN'),
 };
 

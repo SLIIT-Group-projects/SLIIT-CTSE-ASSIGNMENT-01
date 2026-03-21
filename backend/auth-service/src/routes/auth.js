@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const { z } = require('zod');
 
 const User = require('../models/User');
-const { requireAuth, requireRole } = require('../middleware/auth');
+const { requireAuth, requireRole, requireInternal } = require('../middleware/auth');
 const { jwtSecret, jwtExpiresIn } = require('../config');
 
 const router = express.Router();
@@ -90,6 +90,29 @@ router.get('/me', requireAuth, async (req, res) => {
  * GET /auth/admin/ping
  */
 router.get('/admin/ping', requireAuth, requireRole('ADMIN'), (req, res) => res.json({ ok: true }));
+
+/**
+ * POST /auth/users/bulk
+ * Internal endpoint for service-to-service user lookup.
+ */
+router.post('/users/bulk', requireInternal, async (req, res) => {
+  const schema = z.object({
+    ids: z.array(z.string().min(1)).max(200),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid payload', errors: parsed.error.flatten() });
+
+  const ids = parsed.data.ids;
+  const users = await User.find({ _id: { $in: ids } }).select('_id name email role').lean();
+  return res.json({
+    users: users.map((u) => ({
+      id: u._id.toString(),
+      name: u.name,
+      email: u.email,
+      role: u.role,
+    })),
+  });
+});
 
 module.exports = router;
 

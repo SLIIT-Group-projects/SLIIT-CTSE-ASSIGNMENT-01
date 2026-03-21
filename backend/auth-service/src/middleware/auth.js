@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { jwtSecret } = require('../config');
+const { jwtSecret, internalServiceToken } = require('../config');
 
 function requireAuth(req, res, next) {
   const authHeader = req.headers.authorization || '';
@@ -24,5 +24,12 @@ function requireRole(...roles) {
   };
 }
 
-module.exports = { requireAuth, requireRole };
+function requireInternal(req, res, next) {
+  const token = req.headers['x-internal-token'];
+  if (!token) return res.status(401).json({ message: 'Missing internal token' });
+  if (token !== internalServiceToken) return res.status(403).json({ message: 'Invalid internal token' });
+  return next();
+}
+
+module.exports = { requireAuth, requireRole, requireInternal };
 

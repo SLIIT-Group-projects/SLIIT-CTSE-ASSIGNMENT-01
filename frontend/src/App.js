@@ -10,6 +10,7 @@ import AppointmentsPage from './pages/AppointmentsPage';
 import AppointmentDoctorSessionsPage from './pages/AppointmentDoctorSessionsPage';
 import AppointmentDetailPage from './pages/AppointmentDetailPage';
 import DoctorPage from './pages/DoctorPage';
+import DoctorAppointmentsPage from './pages/DoctorAppointmentsPage';
 import DoctorDetailsPage from './pages/DoctorDetailsPage';
 import LabPage from './pages/LabPage';
 import BillingPage from './pages/BillingPage';
@@ -67,6 +68,16 @@ export default function App() {
           <RequireRole roles={['DOCTOR']}>
             <Layout>
               <DoctorPage />
+            </Layout>
+          </RequireRole>
+        }
+      />
+      <Route
+        path="/doctor/appointments"
+        element={
+          <RequireRole roles={['DOCTOR']}>
+            <Layout>
+              <DoctorAppointmentsPage />
             </Layout>
           </RequireRole>
         }

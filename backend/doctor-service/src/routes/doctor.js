@@ -9,6 +9,18 @@ const config = require('../config');
 
 const router = express.Router();
 
+function normalizeId(value) {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value.$oid) return String(value.$oid);
+  if (typeof value === 'object' && value._id) return normalizeId(value._id);
+  try {
+    return String(value);
+  } catch {
+    return '';
+  }
+}
+
 const clinicalSchema = z.object({
   notes: z.string().max(20000).optional().default(''),
   prescription: z.string().max(20000).optional().default(''),
@@ -101,7 +113,38 @@ router.get('/doctor/appointments', requireAuth, requireRole('DOCTOR'), async (re
     headers: { Authorization: authHeader },
     timeout: 10000,
   });
-  return res.json(resp.data);
+  const appointments = resp.data?.appointments || [];
+
+  // Enrich patient details for doctor UI.
+  const patientIds = [...new Set(appointments.map((a) => normalizeId(a.patientId)).filter(Boolean))];
+  let patientMap = {};
+  if (patientIds.length > 0) {
+    try {
+      const usersResp = await axios.post(
+        `${config.authServiceBaseUrl}/auth/users/bulk`,
+        { ids: patientIds },
+        {
+          headers: {
+            'x-internal-token': config.internalServiceToken,
+            'Content-Type': 'application/json',
+          },
+          timeout: 10000,
+        }
+      );
+      const users = usersResp.data?.users || [];
+      patientMap = Object.fromEntries(users.map((u) => [normalizeId(u.id), u]));
+    } catch {
+      // Keep endpoint resilient; UI can still show patientId fallback.
+      patientMap = {};
+    }
+  }
+
+  const enriched = appointments.map((a) => ({
+    ...a,
+    patient: patientMap[normalizeId(a.patientId)] || null,
+  }));
+
+  return res.json({ appointments: enriched });
 });
 
 /**

@@ -10,7 +10,8 @@ function navForRole(role) {
     nav.push({ to: '/lab', label: 'Lab Reports', icon: 'report' });
   }
   if (role === 'DOCTOR') {
-    nav.push({ to: '/doctor', label: 'Doctor Panel', icon: 'stethoscope' });
+    nav.push({ to: '/doctor', label: 'Doctor Availability', icon: 'stethoscope' });
+    nav.push({ to: '/doctor/appointments', label: 'Confirmed Appointments', icon: 'calendar' });
     nav.push({ to: '/doctor/details', label: 'Doctor Details', icon: 'id' });
   }
   if (role === 'LAB_TECH') nav.push({ to: '/lab', label: 'Lab Panel', icon: 'flask' });
@@ -116,6 +117,7 @@ function Sidebar({ open, onClose }) {
             <NavLink
               key={item.to}
               to={item.to}
+              end={item.to === '/doctor'}
               onClick={onClose}
               className={({ isActive }) =>
                 `flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
