@@ -11,9 +11,11 @@ Microservices hospital workflow using: Node.js + Express + MongoDB + React + Tai
 
 Frontend:
 - `frontend/` (single shared React app)
+- `backend/api-gateway/` (single entrypoint for frontend traffic)
 
 ## Ports (default)
 - Frontend: `3000`
+- API Gateway: `4000`
 - Auth: `4001`
 - Appointments: `4002`
 - Doctor: `4003`
@@ -23,6 +25,7 @@ Frontend:
 ## Required environment files
 For each backend service directory, copy:
 - `backend/<service>/.env.example` -> `backend/<service>/.env`
+- `backend/api-gateway/.env.example` -> `backend/api-gateway/.env`
 
 For the frontend:
 - `frontend/.env.example` -> `frontend/.env`
@@ -36,6 +39,14 @@ All services must use the same `JWT_SECRET` and `INTERNAL_SERVICE_TOKEN`.
    - `cd frontend`
    - `npm start`
 3. Open: `http://localhost:3000`
+
+## API Gateway routing
+Frontend should call only the gateway (`http://localhost:4000`) and use:
+- `http://localhost:4000/auth-service/*` -> Auth Service
+- `http://localhost:4000/appointment-service/*` -> Appointment Service
+- `http://localhost:4000/doctor-service/*` -> Doctor Service
+- `http://localhost:4000/lab-service/*` -> Lab Service
+- `http://localhost:4000/billing-service/*` -> Billing Service
 
 ## Workflow (strict)
 1. `PATIENT` and `DOCTOR` register/login via `auth-service`.

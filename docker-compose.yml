@@ -54,6 +54,21 @@ services:
     networks:
       - hm-net
 
+  api-gateway:
+    build: ./backend/api-gateway
+    ports:
+      - "4000:4000"
+    env_file:
+      - ./backend/api-gateway/.env
+    depends_on:
+      - auth-service
+      - appointment-service
+      - doctor-service
+      - lab-service
+      - billing-service
+    networks:
+      - hm-net
+
   mongo-auth:
     image: mongo:7
     restart: unless-stopped
