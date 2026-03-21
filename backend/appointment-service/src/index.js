@@ -4,6 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const swaggerUi = require('swagger-ui-express');
+const path = require('path');
 
 require('dotenv').config();
 
@@ -17,6 +18,7 @@ app.use(helmet());
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '2mb' }));
 app.use(morgan('dev'));
+app.use('/uploads', express.static(path.join(__dirname, '..', 'uploads')));
 
 app.use(appointmentRoutes);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));

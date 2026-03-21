@@ -14,6 +14,17 @@ const appointmentSchema = new mongoose.Schema(
       index: true,
     },
     billingBillId: { type: String, default: null },
+    previousReports: {
+      type: [
+        {
+          title: { type: String, required: true },
+          summary: { type: String, default: '' },
+          reportUrl: { type: String, default: '' },
+          createdAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
   },
   { timestamps: true }
 );

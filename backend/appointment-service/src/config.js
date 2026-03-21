@@ -17,6 +17,7 @@ module.exports = {
   internalServiceToken: required('INTERNAL_SERVICE_TOKEN'),
   billingServiceBaseUrl: required('BILLING_SERVICE_BASE_URL'),
   doctorServiceBaseUrl: process.env.DOCTOR_SERVICE_BASE_URL || 'http://doctor-service:4003',
+  publicServiceBaseUrl: process.env.PUBLIC_SERVICE_BASE_URL || 'http://localhost:4000/appointment-service',
   slotMinutes: Number(process.env.SLOT_MINUTES || 30),
   defaultAppointmentAmount: Number(process.env.DEFAULT_APPOINTMENT_AMOUNT || 500),
 };

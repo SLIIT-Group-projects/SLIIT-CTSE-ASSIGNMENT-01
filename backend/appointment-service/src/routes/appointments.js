@@ -1,6 +1,9 @@
 const express = require('express');
 const axios = require('axios');
 const { z } = require('zod');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const Appointment = require('../models/Appointment');
 const DoctorSchedule = require('../models/DoctorSchedule');
@@ -9,6 +12,29 @@ const config = require('../config');
 const { buildSlotsForRange, normalizeDateString } = require('../utils/timeSlots');
 
 const router = express.Router();
+const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'previous-reports');
+fs.mkdirSync(uploadsDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadsDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    const safeExt = ext || '.bin';
+    cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`);
+  },
+});
+
+const uploadReport = multer({
+  storage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ok =
+      file.mimetype === 'application/pdf' ||
+      file.mimetype.startsWith('image/');
+    if (!ok) return cb(new Error('Only PDF or image files are allowed'));
+    return cb(null, true);
+  },
+});
 
 const scheduleSchema = z.object({
   slots: z
@@ -218,6 +244,59 @@ router.post('/appointments', requireAuth, requireRole('PATIENT'), async (req, re
 
   return res.status(201).json({ appointment, bill: billResp.data || null });
 });
+
+/**
+ * POST /appointments/:id/previous-reports
+ * Patient adds prior medical reports/notes for the appointment.
+ */
+router.post('/appointments/:id/previous-reports', requireAuth, requireRole('PATIENT'), async (req, res) => {
+  const schema = z.object({
+    title: z.string().trim().min(2).max(160),
+    summary: z.string().max(4000).optional().default(''),
+    reportUrl: z.string().url().max(2048).optional().or(z.literal('')).default(''),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid payload', errors: parsed.error.flatten() });
+
+  const appointment = await Appointment.findById(req.params.id);
+  if (!appointment) return res.status(404).json({ message: 'Appointment not found' });
+  if (appointment.patientId.toString() !== req.user.userId) return res.status(403).json({ message: 'Forbidden' });
+
+  appointment.previousReports.push({
+    title: parsed.data.title,
+    summary: parsed.data.summary,
+    reportUrl: parsed.data.reportUrl,
+  });
+  await appointment.save();
+
+  return res.status(201).json({ ok: true, appointment });
+});
+
+/**
+ * POST /appointments/:id/previous-reports/upload
+ * Patient uploads a previous report file (PDF/image) for doctor review.
+ */
+router.post(
+  '/appointments/:id/previous-reports/upload',
+  requireAuth,
+  requireRole('PATIENT'),
+  uploadReport.single('report'),
+  async (req, res) => {
+    const appointment = await Appointment.findById(req.params.id);
+    if (!appointment) return res.status(404).json({ message: 'Appointment not found' });
+    if (appointment.patientId.toString() !== req.user.userId) return res.status(403).json({ message: 'Forbidden' });
+    if (!req.file) return res.status(400).json({ message: 'Report file is required' });
+
+    const reportUrl = `${config.publicServiceBaseUrl}/uploads/previous-reports/${req.file.filename}`;
+    appointment.previousReports.push({
+      title: req.file.originalname || 'Uploaded report',
+      summary: '',
+      reportUrl,
+    });
+    await appointment.save();
+    return res.status(201).json({ ok: true, appointment });
+  }
+);
 
 /**
  * PUT /appointments/confirm/:id

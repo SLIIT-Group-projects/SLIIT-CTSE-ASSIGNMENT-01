@@ -198,6 +198,37 @@ export default function DoctorPage() {
                     </div>
                   </div>
 
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+                    <div className="text-sm font-semibold text-slate-800">Previous Reports from Patient</div>
+                    {(a.previousReports || []).length === 0 ? (
+                      <div className="mt-1 text-sm text-slate-500">No previous reports were added by the patient.</div>
+                    ) : (
+                      <div className="mt-2 space-y-2">
+                        {[...(a.previousReports || [])]
+                          .sort((x, y) => new Date(y.createdAt) - new Date(x.createdAt))
+                          .map((r, idx) => (
+                            <div key={`${r.createdAt || idx}-${idx}`} className="rounded-lg border border-slate-100 bg-slate-50 p-3">
+                              <div className="text-sm font-semibold text-slate-900">{r.title}</div>
+                              {r.summary ? <div className="mt-1 whitespace-pre-wrap text-sm text-slate-600">{r.summary}</div> : null}
+                              <div className="mt-1 flex items-center justify-between gap-3">
+                                <div className="text-xs text-slate-400">{r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</div>
+                                {r.reportUrl ? (
+                                  <a
+                                    className="text-sm font-semibold text-blue-700 underline"
+                                    href={r.reportUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    Open Report
+                                  </a>
+                                ) : null}
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+
                   <div className="mt-4 flex gap-2">
                     <PrimaryButton
                       type="button"

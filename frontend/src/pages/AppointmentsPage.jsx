@@ -21,23 +21,29 @@ export default function AppointmentsPage() {
       doctorApi.get('/doctor/clinical/patient'),
       labApi.get('/lab/reports'),
     ]);
-    setAppointments(apptResp.data.appointments || []);
+    const appts = apptResp.data.appointments || [];
+    setAppointments(appts);
     setPrescriptions(prescResp.data.clinical || []);
     setLabReports(labResp.data.labReports || []);
+    await loadDoctorProfiles([...new Set(appts.map((a) => String(a.doctorId)))]);
   }
 
   async function loadDoctorProfiles(doctorIds) {
     if (!doctorIds?.length) {
-      setDoctorProfiles([]);
       return;
     }
     try {
       const resp = await doctorApi.get('/doctor/profiles', {
         params: { ids: doctorIds.join(',') },
       });
-      setDoctorProfiles(resp.data?.profiles || []);
+      const incoming = resp.data?.profiles || [];
+      setDoctorProfiles((prev) => {
+        const byId = new Map();
+        [...prev, ...incoming].forEach((p) => byId.set(String(p.doctorId), p));
+        return Array.from(byId.values());
+      });
     } catch (_e) {
-      setDoctorProfiles([]);
+      // Keep existing profiles if fetch fails.
     }
   }
 
@@ -153,12 +159,17 @@ export default function AppointmentsPage() {
             </thead>
             <tbody>
               {appointments.map((a) => (
-                <tr key={a._id} className="table-row">
+                <tr
+                  key={a._id}
+                  className="table-row cursor-pointer"
+                  onClick={() => navigate(`/appointments/${a._id}`)}
+                  title="Open appointment details"
+                >
                   <td>{a.date}</td>
                   <td>
                     {a.startTime} - {a.endTime}
                   </td>
-                  <td>{a.doctorId}</td>
+                  <td>{doctorProfileMap.get(String(a.doctorId))?.name || a.doctorId}</td>
                   <td>
                     <StatusBadge status={a.status} />
                   </td>
@@ -168,9 +179,11 @@ export default function AppointmentsPage() {
                         type="file"
                         accept="image/*,application/pdf"
                         onChange={async (e) => {
+                          e.stopPropagation();
                           const file = e.target.files?.[0];
                           if (file) await uploadSlip(a, file);
                         }}
+                        onClick={(e) => e.stopPropagation()}
                         className="text-sm text-slate-600"
                       />
                     ) : (
