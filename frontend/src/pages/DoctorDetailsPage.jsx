@@ -7,6 +7,7 @@ const initialForm = {
   name: '',
   workingHospital: '',
   speciality: '',
+  consultationCharge: '500',
   bio: '',
   phone: '',
 };
@@ -27,6 +28,10 @@ export default function DoctorDetailsPage() {
           name: p.name || '',
           workingHospital: p.workingHospital || '',
           speciality: p.speciality || '',
+          consultationCharge:
+            p.consultationCharge !== undefined && p.consultationCharge !== null
+              ? String(p.consultationCharge)
+              : '500',
           bio: p.bio || '',
           phone: p.phone || '',
         });
@@ -49,8 +54,13 @@ export default function DoctorDetailsPage() {
 
   async function onSubmit(e) {
     e.preventDefault();
+    const charge = Number(form.consultationCharge);
     if (!form.name.trim() || !form.workingHospital.trim() || !form.speciality.trim()) {
       notify('Name, working hospital, and speciality are required.', 'error');
+      return;
+    }
+    if (!Number.isFinite(charge) || charge < 0) {
+      notify('Doctor charge must be a valid non-negative number.', 'error');
       return;
     }
 
@@ -60,6 +70,7 @@ export default function DoctorDetailsPage() {
         name: form.name.trim(),
         workingHospital: form.workingHospital.trim(),
         speciality: form.speciality.trim(),
+        consultationCharge: charge,
         bio: form.bio.trim(),
         phone: form.phone.trim(),
       });
@@ -118,6 +129,20 @@ export default function DoctorDetailsPage() {
                 value={form.workingHospital}
                 onChange={(e) => setField('workingHospital', e.target.value)}
                 placeholder="City General Hospital"
+                required
+              />
+            </label>
+
+            <label className="text-sm font-medium text-slate-700">
+              Doctor Charge (LKR)
+              <input
+                className="input-modern"
+                type="number"
+                min="0"
+                step="1"
+                value={form.consultationCharge}
+                onChange={(e) => setField('consultationCharge', e.target.value)}
+                placeholder="500"
                 required
               />
             </label>

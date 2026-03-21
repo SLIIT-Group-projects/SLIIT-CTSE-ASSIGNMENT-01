@@ -22,6 +22,22 @@ const scheduleSchema = z.object({
     .min(1),
 });
 
+async function resolveAppointmentAmount(doctorId, authHeader) {
+  try {
+    const resp = await axios.get(`${config.doctorServiceBaseUrl}/doctor/profiles`, {
+      params: { ids: doctorId },
+      headers: { Authorization: authHeader },
+      timeout: 10000,
+    });
+    const profile = resp.data?.profiles?.[0];
+    const charge = Number(profile?.consultationCharge);
+    if (Number.isFinite(charge) && charge >= 0) return charge;
+  } catch {
+    // Fallback to default amount when doctor profile is unavailable.
+  }
+  return config.defaultAppointmentAmount;
+}
+
 /**
  * POST /doctor/schedule
  * Doctors define weekly available time ranges.
@@ -86,6 +102,55 @@ router.get('/doctors/:doctorId/available-slots', requireAuth, requireRole('PATIE
 });
 
 /**
+ * GET /appointments/quote?doctorId=...&date=YYYY-MM-DD&slotStart=HH:MM
+ * Patient preview before confirming booking.
+ */
+router.get('/appointments/quote', requireAuth, requireRole('PATIENT'), async (req, res) => {
+  const schema = z.object({
+    doctorId: z.string().min(1),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    slotStart: z.string().regex(/^\d{2}:\d{2}$/),
+  });
+  const parsed = schema.safeParse(req.query || {});
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid query', errors: parsed.error.flatten() });
+
+  const { doctorId, date, slotStart } = parsed.data;
+
+  const schedule = await DoctorSchedule.findOne({ doctorId }).lean();
+  if (!schedule) return res.status(400).json({ message: 'Doctor has no schedule' });
+
+  const dayOfWeek = new Date(`${date}T00:00:00`).getDay();
+  const dayRanges = schedule.slots.filter((s) => s.dayOfWeek === dayOfWeek);
+  const availableSlots = [];
+  for (const range of dayRanges) availableSlots.push(...buildSlotsForRange(range, config.slotMinutes));
+
+  const requested = availableSlots.find((s) => s.start === slotStart);
+  if (!requested) return res.status(400).json({ message: 'Requested slot is not available' });
+
+  const exists = await Appointment.findOne({ doctorId, date, startTime: slotStart });
+  if (exists) return res.status(409).json({ message: 'Slot already booked' });
+
+  const amount = await resolveAppointmentAmount(doctorId, req.headers.authorization);
+
+  const currentCount = await Appointment.countDocuments({
+    doctorId,
+    date,
+    status: { $in: ['PENDING_PAYMENT', 'CONFIRMED', 'COMPLETED'] },
+  });
+
+  return res.json({
+    quote: {
+      amount,
+      currency: 'LKR',
+      patientNumber: currentCount + 1,
+      slot: requested,
+      doctorId,
+      date,
+    },
+  });
+});
+
+/**
  * POST /appointments
  * Create an appointment with status PENDING_PAYMENT and request a bill from Billing Service.
  */
@@ -100,6 +165,7 @@ router.post('/appointments', requireAuth, requireRole('PATIENT'), async (req, re
 
   const { doctorId, date, slotStart } = parsed.data;
   const patientId = req.user.userId;
+  const authHeader = req.headers.authorization;
 
   const schedule = await DoctorSchedule.findOne({ doctorId });
   if (!schedule) return res.status(400).json({ message: 'Doctor has no schedule' });
@@ -114,6 +180,8 @@ router.post('/appointments', requireAuth, requireRole('PATIENT'), async (req, re
 
   const exists = await Appointment.findOne({ doctorId, date, startTime: slotStart });
   if (exists) return res.status(409).json({ message: 'Slot already booked' });
+
+  const amount = await resolveAppointmentAmount(doctorId, authHeader);
 
   const appointment = await Appointment.create({
     patientId,
@@ -131,7 +199,7 @@ router.post('/appointments', requireAuth, requireRole('PATIENT'), async (req, re
       appointmentId: appointment._id.toString(),
       patientId,
       doctorId,
-      amount: config.defaultAppointmentAmount,
+      amount,
     },
     {
       headers: {

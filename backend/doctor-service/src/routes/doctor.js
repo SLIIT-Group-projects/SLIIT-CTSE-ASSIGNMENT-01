@@ -18,8 +18,42 @@ const doctorProfileSchema = z.object({
   name: z.string().trim().min(2).max(120),
   workingHospital: z.string().trim().min(2).max(160),
   speciality: z.string().trim().min(2).max(120),
+  consultationCharge: z.number().min(0).max(1000000),
   bio: z.string().max(2000).optional().default(''),
   phone: z.string().max(40).optional().default(''),
+});
+
+/**
+ * GET /doctor/profiles
+ * Patient reads doctor profiles (optionally filtered by doctor IDs).
+ * Query:
+ *   - ids=comma,separated,doctorIds
+ */
+router.get('/doctor/profiles', requireAuth, requireRole('PATIENT'), async (req, res) => {
+  const idsRaw = String(req.query.ids || '')
+    .split(',')
+    .map((x) => x.trim())
+    .filter(Boolean);
+  const ids = idsRaw.filter((id) => /^[a-fA-F0-9]{24}$/.test(id));
+
+  const query = ids.length > 0 ? { doctorId: { $in: ids } } : {};
+  const profiles = await DoctorProfile.find(query).sort({ updatedAt: -1 }).lean();
+
+  return res.json({
+    profiles: profiles.map((p) => ({
+      doctorId: p.doctorId.toString(),
+      name: p.name,
+      workingHospital: p.workingHospital,
+      speciality: p.speciality,
+      consultationCharge:
+        typeof p.consultationCharge === 'number' && Number.isFinite(p.consultationCharge)
+          ? p.consultationCharge
+          : 500,
+      bio: p.bio || '',
+      phone: p.phone || '',
+      updatedAt: p.updatedAt,
+    })),
+  });
 });
 
 /**
@@ -47,6 +81,7 @@ router.put('/doctor/profile', requireAuth, requireRole('DOCTOR'), async (req, re
       name: payload.name,
       workingHospital: payload.workingHospital,
       speciality: payload.speciality,
+      consultationCharge: payload.consultationCharge,
       bio: payload.bio,
       phone: payload.phone,
     },

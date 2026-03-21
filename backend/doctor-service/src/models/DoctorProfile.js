@@ -6,6 +6,7 @@ const doctorProfileSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     workingHospital: { type: String, required: true, trim: true },
     speciality: { type: String, required: true, trim: true },
+    consultationCharge: { type: Number, required: true, default: 500, min: 0 },
     bio: { type: String, default: '' },
     phone: { type: String, default: '' },
   },
