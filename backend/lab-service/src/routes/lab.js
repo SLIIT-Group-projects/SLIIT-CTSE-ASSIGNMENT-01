@@ -3,6 +3,7 @@ const axios = require('axios');
 const path = require('path');
 const multer = require('multer');
 const fs = require('fs');
+const mongoose = require('mongoose');
 const { z } = require('zod');
 
 const LabRequest = require('../models/LabRequest');
@@ -26,13 +27,45 @@ const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    const ok =
-      file.mimetype === 'application/pdf' ||
-      file.mimetype.startsWith('image/');
+    const ok = file.mimetype === 'application/pdf' || file.mimetype.startsWith('image/');
     if (!ok) return cb(new Error('Only PDF/images are allowed'));
     return cb(null, true);
   },
 });
+
+function handleMulterUpload(mw) {
+  return (req, res, next) => {
+    mw(req, res, (err) => {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ message: 'File too large (max 10MB)' });
+        }
+        return res.status(400).json({ message: err.message });
+      }
+      if (err) return res.status(400).json({ message: err.message || 'Invalid file' });
+      return next();
+    });
+  };
+}
+
+function buildRequestsQuery(query) {
+  const filter = {};
+  if (query.paymentStatus === 'PAID' || query.paymentStatus === 'PENDING_PAYMENT') {
+    filter.paymentStatus = query.paymentStatus;
+  }
+  if (query.hasReport === 'yes') filter.reportUrl = { $ne: null };
+  if (query.hasReport === 'no') filter.reportUrl = null;
+
+  const search = typeof query.search === 'string' ? query.search.trim() : '';
+  if (search) {
+    const or = [{ testName: new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }];
+    if (mongoose.Types.ObjectId.isValid(search) && String(search).length === 24) {
+      or.push({ patientId: search });
+    }
+    filter.$or = or;
+  }
+  return filter;
+}
 
 /**
  * POST /lab/requests
@@ -58,9 +91,10 @@ router.post('/lab/requests', requireInternal, async (req, res) => {
     testName,
     notes,
     paymentStatus: 'PENDING_PAYMENT',
+    labStatus: 'QUEUED',
+    priority: 'NORMAL',
   });
 
-  // Create the lab bill in Billing Service.
   const billResp = await axios.post(
     `${config.billingServiceBaseUrl}/billing/lab/bills`,
     {
@@ -103,34 +137,134 @@ router.put('/lab/confirm-payment/:id', requireInternal, async (req, res) => {
 });
 
 /**
- * GET /lab/requests
- * LAB_TECH view of lab requests.
+ * @openapi
+ * /lab/requests:
+ *   get:
+ *     summary: LAB_TECH list lab requests (optional filters)
+ *     security: [ { bearerAuth: [] } ]
  */
 router.get('/lab/requests', requireAuth, requireRole('LAB_TECH'), async (req, res) => {
-  const requests = await LabRequest.find().sort({ createdAt: -1 }).lean();
-  return res.json({ labRequests: requests });
+  const filter = buildRequestsQuery(req.query);
+  const requests = await LabRequest.find(filter).sort({ priority: -1, createdAt: -1 }).lean();
+  const normalized = requests.map((r) => ({
+    ...r,
+    labStatus: r.labStatus || 'QUEUED',
+    priority: r.priority || 'NORMAL',
+  }));
+  return res.json({ labRequests: normalized });
 });
 
 /**
- * POST /lab/requests/:id/report
- * Upload lab report (only if payment is confirmed).
+ * @openapi
+ * /lab/requests/{id}/status:
+ *   put:
+ *     summary: LAB_TECH move request between QUEUED and IN_PROGRESS (requires PAID)
  */
-router.post('/lab/requests/:id/report', requireAuth, requireRole('LAB_TECH'), upload.single('report'), async (req, res) => {
+router.put('/lab/requests/:id/status', requireAuth, requireRole('LAB_TECH'), async (req, res) => {
+  const bodySchema = z.object({
+    status: z.enum(['QUEUED', 'IN_PROGRESS']),
+  });
+  const parsed = bodySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid body', errors: parsed.error.flatten() });
+
   const labRequest = await LabRequest.findById(req.params.id);
   if (!labRequest) return res.status(404).json({ message: 'Lab request not found' });
-  if (labRequest.paymentStatus !== 'PAID') return res.status(403).json({ message: 'Payment not confirmed yet' });
+  if (labRequest.paymentStatus !== 'PAID') {
+    return res.status(403).json({ message: 'Payment must be confirmed before processing' });
+  }
+  if (labRequest.reportUrl && parsed.data.status === 'IN_PROGRESS') {
+    return res.status(409).json({ message: 'Report already uploaded; use replace upload flow' });
+  }
 
-  if (!req.file) return res.status(400).json({ message: 'Missing report file' });
+  const next = parsed.data.status;
+  const current = labRequest.labStatus || 'QUEUED';
 
-  const filename = req.file.filename;
-  const reportUrl = config.publicServiceBaseUrl ? `${config.publicServiceBaseUrl}/uploads/${filename}` : `/uploads/${filename}`;
+  if (next === 'IN_PROGRESS') {
+    if (current !== 'QUEUED') return res.status(409).json({ message: `Cannot start from ${current}` });
+    labRequest.labStatus = 'IN_PROGRESS';
+  } else if (next === 'QUEUED') {
+    if (current !== 'IN_PROGRESS') return res.status(409).json({ message: `Cannot reset from ${current}` });
+    labRequest.labStatus = 'QUEUED';
+  }
 
-  labRequest.reportUrl = reportUrl;
-  labRequest.reportFileName = filename;
   await labRequest.save();
-
   return res.json({ ok: true, labRequest });
 });
+
+/**
+ * @openapi
+ * /lab/requests/{id}:
+ *   patch:
+ *     summary: LAB_TECH set priority (NORMAL / URGENT)
+ */
+router.patch('/lab/requests/:id', requireAuth, requireRole('LAB_TECH'), async (req, res) => {
+  const bodySchema = z.object({
+    priority: z.enum(['NORMAL', 'URGENT']),
+  });
+  const parsed = bodySchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid body', errors: parsed.error.flatten() });
+
+  const labRequest = await LabRequest.findById(req.params.id);
+  if (!labRequest) return res.status(404).json({ message: 'Lab request not found' });
+
+  labRequest.priority = parsed.data.priority;
+  await labRequest.save();
+  return res.json({ ok: true, labRequest });
+});
+
+/**
+ * @openapi
+ * /lab/requests/{id}/report:
+ *   post:
+ *     summary: Upload lab report (PDF/image). First upload requires IN_PROGRESS; replacement when COMPLETED.
+ */
+router.post(
+  '/lab/requests/:id/report',
+  requireAuth,
+  requireRole('LAB_TECH'),
+  handleMulterUpload(upload.single('report')),
+  async (req, res) => {
+    const remarksSchema = z.string().max(500).optional().default('');
+    const remarksParsed = remarksSchema.safeParse(req.body?.remarks ?? '');
+    if (!remarksParsed.success) return res.status(400).json({ message: 'Invalid remarks' });
+
+    const labRequest = await LabRequest.findById(req.params.id);
+    if (!labRequest) return res.status(404).json({ message: 'Lab request not found' });
+    if (labRequest.paymentStatus !== 'PAID') return res.status(403).json({ message: 'Payment not confirmed yet' });
+
+    if (!req.file) return res.status(400).json({ message: 'Missing report file' });
+
+    const currentStatus = labRequest.labStatus || 'QUEUED';
+    const isReplacement = Boolean(labRequest.reportUrl);
+
+    if (!isReplacement) {
+      if (currentStatus !== 'IN_PROGRESS') {
+        return res.status(403).json({ message: 'Mark request as In progress before uploading' });
+      }
+    } else {
+      if (currentStatus !== 'COMPLETED') {
+        return res.status(409).json({ message: 'Invalid state for report replacement' });
+      }
+      labRequest.replacedAt = new Date();
+    }
+
+    const filename = req.file.filename;
+    const reportUrl = config.publicServiceBaseUrl ? `${config.publicServiceBaseUrl}/uploads/${filename}` : `/uploads/${filename}`;
+
+    labRequest.reportUrl = reportUrl;
+    labRequest.reportFileName = filename;
+    labRequest.reportRemarks = remarksParsed.data;
+    labRequest.labStatus = 'COMPLETED';
+    labRequest.uploadedAt = new Date();
+    labRequest.uploadedBy = req.user.userId;
+    // Stub: in production, enqueue email/SMS/push to patient
+    labRequest.patientNotified = true;
+
+    await labRequest.save();
+
+    return res.json({ ok: true, labRequest });
+  }
+);
 
 /**
  * GET /lab/reports
@@ -144,8 +278,17 @@ router.get('/lab/reports', requireAuth, requireRole('PATIENT'), async (req, res)
     .sort({ createdAt: -1 })
     .lean();
 
-  return res.json({ labReports: requests.map((r) => ({ id: r._id, appointmentId: r.appointmentId, testName: r.testName, reportUrl: r.reportUrl, createdAt: r.createdAt })) });
+  return res.json({
+    labReports: requests.map((r) => ({
+      id: r._id,
+      appointmentId: r.appointmentId,
+      testName: r.testName,
+      reportUrl: r.reportUrl,
+      reportRemarks: r.reportRemarks || '',
+      uploadedAt: r.uploadedAt,
+      createdAt: r.createdAt,
+    })),
+  });
 });
 
 module.exports = router;
-

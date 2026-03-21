@@ -8,6 +8,23 @@ const labRequestSchema = new mongoose.Schema(
     testName: { type: String, required: true, trim: true, index: true },
     notes: { type: String, default: '' },
 
+    priority: {
+      type: String,
+      required: true,
+      enum: ['NORMAL', 'URGENT'],
+      default: 'NORMAL',
+      index: true,
+    },
+
+    // Lab processing (LAB_TECH): QUEUED → IN_PROGRESS → COMPLETED (on upload)
+    labStatus: {
+      type: String,
+      required: true,
+      enum: ['QUEUED', 'IN_PROGRESS', 'COMPLETED'],
+      default: 'QUEUED',
+      index: true,
+    },
+
     // PAYMENT STATUS required by workflow:
     // - PENDING_PAYMENT: report upload blocked
     // - PAID: report upload allowed
@@ -23,6 +40,14 @@ const labRequestSchema = new mongoose.Schema(
 
     reportUrl: { type: String, default: null },
     reportFileName: { type: String, default: null },
+    reportRemarks: { type: String, default: '', maxlength: 500 },
+
+    uploadedAt: { type: Date, default: null },
+    uploadedBy: { type: mongoose.Schema.Types.ObjectId, default: null },
+    replacedAt: { type: Date, default: null },
+
+    /** Set true when report is finalized; production would trigger email/push here */
+    patientNotified: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
