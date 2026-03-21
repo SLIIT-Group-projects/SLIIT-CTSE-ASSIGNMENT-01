@@ -1,7 +1,9 @@
 # appointment-service
 
 Hospital appointment workflow:
-- Doctors define weekly availability (`POST /doctor/schedule`)
+- Doctors fetch existing weekly availability (`GET /doctor/schedule`)
+- Doctors define weekly availability once (`POST /doctor/schedule`)
+- Doctors edit weekly availability later (`PUT /doctor/schedule`)
 - Patients view slots (`GET /doctors/:doctorId/available-slots`)
 - Patients book appointments (`POST /appointments`) -> creates bill in Billing Service
 - Billing Service confirms appointments (`PUT /appointments/confirm/:id`)

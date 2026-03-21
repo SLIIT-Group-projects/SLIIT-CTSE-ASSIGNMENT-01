@@ -75,8 +75,19 @@ function rangeContainsStart(range, slotStart) {
 }
 
 /**
+ * GET /doctor/schedule
+ * Doctor fetches current weekly available time ranges.
+ */
+router.get('/doctor/schedule', requireAuth, requireRole('DOCTOR'), async (req, res) => {
+  const doctorId = req.user.userId;
+  const schedule = await DoctorSchedule.findOne({ doctorId }).lean();
+  if (!schedule) return res.json({ hasSchedule: false, schedule: null });
+  return res.json({ hasSchedule: true, schedule });
+});
+
+/**
  * POST /doctor/schedule
- * Doctors define weekly available time ranges.
+ * Doctors define weekly available time ranges (initial setup only).
  */
 router.post('/doctor/schedule', requireAuth, requireRole('DOCTOR'), async (req, res) => {
   const parsed = scheduleSchema.safeParse(req.body);
@@ -85,14 +96,36 @@ router.post('/doctor/schedule', requireAuth, requireRole('DOCTOR'), async (req, 
   const doctorId = req.user.userId;
   const { slots } = parsed.data;
 
-  // Upsert schedule for this doctor.
-  await DoctorSchedule.updateOne(
+  const exists = await DoctorSchedule.exists({ doctorId });
+  if (exists) {
+    return res
+      .status(409)
+      .json({ message: 'Weekly schedule already exists. Use update endpoint to edit your schedule.' });
+  }
+
+  await DoctorSchedule.create({ doctorId, slots });
+  return res.status(201).json({ ok: true, created: true });
+});
+
+/**
+ * PUT /doctor/schedule
+ * Doctors edit an existing weekly schedule.
+ */
+router.put('/doctor/schedule', requireAuth, requireRole('DOCTOR'), async (req, res) => {
+  const parsed = scheduleSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid payload', errors: parsed.error.flatten() });
+
+  const doctorId = req.user.userId;
+  const { slots } = parsed.data;
+
+  const updated = await DoctorSchedule.findOneAndUpdate(
     { doctorId },
     { $set: { slots } },
-    { upsert: true }
+    { new: true }
   );
+  if (!updated) return res.status(404).json({ message: 'Weekly schedule not found. Create it first.' });
 
-  return res.json({ ok: true });
+  return res.json({ ok: true, updated: true, schedule: updated });
 });
 
 /**
