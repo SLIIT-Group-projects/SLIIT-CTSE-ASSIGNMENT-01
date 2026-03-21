@@ -7,6 +7,10 @@ const stylesByStatus = {
   PAID: 'bg-blue-100 text-blue-800 border-blue-200',
   REJECTED: 'bg-red-100 text-red-800 border-red-200',
   CANCELLED: 'bg-red-100 text-red-700 border-red-200',
+  QUEUED: 'bg-slate-100 text-slate-800 border-slate-200',
+  IN_PROGRESS: 'bg-amber-100 text-amber-900 border-amber-200',
+  NORMAL: 'bg-slate-50 text-slate-600 border-slate-200',
+  URGENT: 'bg-rose-100 text-rose-900 border-rose-200',
 };
 
 export default function StatusBadge({ status }) {
