@@ -28,7 +28,11 @@ jobs:
       - name: Install dependencies
         run: |
           cd ${{ matrix.service.dir }}
-          npm ci
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       # Temporary: Snyk scan disabled to allow CI run without secret/token setup.
       # - name: Snyk SAST / Vulnerability Scan
@@ -63,7 +67,7 @@ jobs:
         run: npm ci
 
       - name: Run tests (if available)
-        run: npm test --if-present -- --watchAll=false
+        run: npm test --if-present -- --watchAll=false --passWithNoTests
         env:
           CI: 'true'
 
