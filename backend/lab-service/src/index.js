@@ -19,7 +19,8 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '2mb' }));
 app.use(morgan('dev'));
 
-const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
+// Must match lab.js multer destination: .../lab-service/uploads (not backend/uploads)
+const uploadsDir = path.join(__dirname, '..', 'uploads');
 app.use('/uploads', express.static(uploadsDir));
 
 app.use(labRoutes);

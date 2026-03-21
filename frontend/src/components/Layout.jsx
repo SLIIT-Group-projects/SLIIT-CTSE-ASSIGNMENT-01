@@ -15,7 +15,10 @@ function navForRole(role) {
     nav.push({ to: '/doctor/history', label: 'Appointment History', icon: 'history' });
     nav.push({ to: '/doctor/details', label: 'Doctor Details', icon: 'id' });
   }
-  if (role === 'LAB_TECH') nav.push({ to: '/lab', label: 'Lab Panel', icon: 'flask' });
+  if (role === 'LAB_TECH') {
+    nav.push({ to: '/lab', label: 'Lab queue', icon: 'flask' });
+    nav.push({ to: '/lab/completed', label: 'Completed reports', icon: 'report' });
+  }
   if (role === 'ADMIN') nav.push({ to: '/admin', label: 'Admin Panel', icon: 'shield' });
   return nav;
 }

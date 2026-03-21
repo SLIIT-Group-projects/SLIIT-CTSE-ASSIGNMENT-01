@@ -1,9 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { appointmentApi, billingApi, doctorApi, labApi } from '../api/client';
-import StatusBadge from '../components/StatusBadge';
-import { useToast } from '../components/ToastProvider';
-import { EmptyState, PageHero, SoftButton, SurfaceCard } from '../components/ui';
+import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { appointmentApi, billingApi, doctorApi, labApi } from "../api/client";
+import StatusBadge from "../components/StatusBadge";
+import { useToast } from "../components/ToastProvider";
+import {
+  EmptyState,
+  PageHero,
+  SoftButton,
+  SurfaceCard,
+} from "../components/ui";
+import { resolveLabFileUrl } from "../utils/labFileUrl";
 
 export default function AppointmentsPage() {
   const navigate = useNavigate();
@@ -17,15 +23,17 @@ export default function AppointmentsPage() {
 
   async function refreshAll() {
     const [apptResp, prescResp, labResp] = await Promise.all([
-      appointmentApi.get('/patients/appointments'),
-      doctorApi.get('/doctor/clinical/patient'),
-      labApi.get('/lab/reports'),
+      appointmentApi.get("/patients/appointments"),
+      doctorApi.get("/doctor/clinical/patient"),
+      labApi.get("/lab/reports"),
     ]);
     const appts = apptResp.data.appointments || [];
     setAppointments(appts);
     setPrescriptions(prescResp.data.clinical || []);
     setLabReports(labResp.data.labReports || []);
-    await loadDoctorProfiles([...new Set(appts.map((a) => String(a.doctorId)))]);
+    await loadDoctorProfiles([
+      ...new Set(appts.map((a) => String(a.doctorId))),
+    ]);
   }
 
   async function loadDoctorProfiles(doctorIds) {
@@ -33,8 +41,8 @@ export default function AppointmentsPage() {
       return;
     }
     try {
-      const resp = await doctorApi.get('/doctor/profiles', {
-        params: { ids: doctorIds.join(',') },
+      const resp = await doctorApi.get("/doctor/profiles", {
+        params: { ids: doctorIds.join(",") },
       });
       const incoming = resp.data?.profiles || [];
       setDoctorProfiles((prev) => {
@@ -48,7 +56,7 @@ export default function AppointmentsPage() {
   }
 
   async function loadDoctors() {
-    const resp = await appointmentApi.get('/doctors');
+    const resp = await appointmentApi.get("/doctors");
     const ids = resp.data.doctors || [];
     setDoctors(ids);
     await loadDoctorProfiles(ids);
@@ -67,18 +75,25 @@ export default function AppointmentsPage() {
   async function uploadSlip(appointment, file) {
     try {
       const fd = new FormData();
-      fd.append('file', file);
-      await billingApi.post(`/billing/appointments/${appointment._id}/upload-slip`, fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      fd.append("file", file);
+      await billingApi.post(
+        `/billing/appointments/${appointment._id}/upload-slip`,
+        fd,
+        {
+          headers: { "Content-Type": "multipart/form-data" },
+        },
+      );
       await refreshAll();
-      notify('Payment slip uploaded', 'success');
+      notify("Payment slip uploaded", "success");
     } catch (_e) {
-      notify('Could not upload payment slip', 'error');
+      notify("Could not upload payment slip", "error");
     }
   }
 
-  const groupedPrescriptions = useMemo(() => prescriptions || [], [prescriptions]);
+  const groupedPrescriptions = useMemo(
+    () => prescriptions || [],
+    [prescriptions],
+  );
   const doctorProfileMap = useMemo(() => {
     const map = new Map();
     doctorProfiles.forEach((p) => map.set(String(p.doctorId), p));
@@ -91,13 +106,15 @@ export default function AppointmentsPage() {
         const p = doctorProfileMap.get(String(id));
         return {
           doctorId: String(id),
-          name: p?.name || 'Doctor profile not added',
-          speciality: p?.speciality || 'Not specified',
-          workingHospital: p?.workingHospital || 'Hospital not specified',
-          consultationCharge: Number.isFinite(Number(p?.consultationCharge)) ? Number(p.consultationCharge) : 500,
+          name: p?.name || "Doctor profile not added",
+          speciality: p?.speciality || "Not specified",
+          workingHospital: p?.workingHospital || "Hospital not specified",
+          consultationCharge: Number.isFinite(Number(p?.consultationCharge))
+            ? Number(p.consultationCharge)
+            : 500,
         };
       }),
-    [doctors, doctorProfileMap]
+    [doctors, doctorProfileMap],
   );
 
   function openDoctorSessions(id) {
@@ -112,11 +129,18 @@ export default function AppointmentsPage() {
       />
 
       <SurfaceCard>
-        <h2 className="text-xl font-semibold text-slate-900">Choose Your Doctor</h2>
-        <p className="mt-1 text-sm text-slate-500">Click a doctor profile to open upcoming sessions and confirm booking.</p>
+        <h2 className="text-xl font-semibold text-slate-900">
+          Choose Your Doctor
+        </h2>
+        <p className="mt-1 text-sm text-slate-500">
+          Click a doctor profile to open upcoming sessions and confirm booking.
+        </p>
         <div className="mt-4">
           {doctorCards.length === 0 ? (
-            <EmptyState title="No doctors found" subtitle="No available doctors were found yet." />
+            <EmptyState
+              title="No doctors found"
+              subtitle="No available doctors were found yet."
+            />
           ) : (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {doctorCards.map((d) => (
@@ -126,12 +150,18 @@ export default function AppointmentsPage() {
                   onClick={() => openDoctorSessions(d.doctorId)}
                   className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:-translate-y-0.5 hover:border-[#14967F]/40 hover:bg-[#14967F]/5 hover:ring-1 hover:ring-[#14967F]/20"
                 >
-                  <div className="text-base font-semibold text-[#191919]">{d.name}</div>
+                  <div className="text-base font-semibold text-[#191919]">
+                    {d.name}
+                  </div>
                   <div className="mt-1 inline-flex rounded-full bg-[#FAD069]/40 px-2.5 py-1 text-xs font-semibold text-[#72560f]">
                     {d.speciality}
                   </div>
-                  <div className="mt-2 text-sm text-[#A3A3A3]">{d.workingHospital}</div>
-                  <div className="mt-2 text-sm font-semibold text-[#14967F]">Charge: LKR {d.consultationCharge}</div>
+                  <div className="mt-2 text-sm text-[#A3A3A3]">
+                    {d.workingHospital}
+                  </div>
+                  <div className="mt-2 text-sm font-semibold text-[#14967F]">
+                    Charge: LKR {d.consultationCharge}
+                  </div>
                 </button>
               ))}
             </div>
@@ -141,8 +171,14 @@ export default function AppointmentsPage() {
 
       <SurfaceCard>
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold text-slate-900">Your Appointments</h2>
-          <SoftButton type="button" onClick={() => refreshAll().catch(() => {})} className="px-4 py-2">
+          <h2 className="text-xl font-semibold text-slate-900">
+            Your Appointments
+          </h2>
+          <SoftButton
+            type="button"
+            onClick={() => refreshAll().catch(() => {})}
+            className="px-4 py-2"
+          >
             Refresh
           </SoftButton>
         </div>
@@ -169,12 +205,15 @@ export default function AppointmentsPage() {
                   <td>
                     {a.startTime} - {a.endTime}
                   </td>
-                  <td>{doctorProfileMap.get(String(a.doctorId))?.name || a.doctorId}</td>
+                  <td>
+                    {doctorProfileMap.get(String(a.doctorId))?.name ||
+                      a.doctorId}
+                  </td>
                   <td>
                     <StatusBadge status={a.status} />
                   </td>
                   <td>
-                    {a.status === 'PENDING_PAYMENT' ? (
+                    {a.status === "PENDING_PAYMENT" ? (
                       <input
                         type="file"
                         accept="image/*,application/pdf"
@@ -208,21 +247,34 @@ export default function AppointmentsPage() {
         <h2 className="text-xl font-semibold text-slate-900">Prescriptions</h2>
         <div className="mt-3">
           {groupedPrescriptions.length === 0 ? (
-            <EmptyState title="No prescriptions yet" subtitle="Prescriptions will appear here after doctor updates." />
+            <EmptyState
+              title="No prescriptions yet"
+              subtitle="Prescriptions will appear here after doctor updates."
+            />
           ) : (
             <div className="space-y-3">
               {groupedPrescriptions.map((c) => (
-                <div key={c._id} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+                <div
+                  key={c._id}
+                  className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4"
+                >
                   <div className="text-sm text-slate-600">
-                    Appointment: <span className="font-mono">{c.appointmentId}</span>
+                    Appointment:{" "}
+                    <span className="font-mono">{c.appointmentId}</span>
                   </div>
                   <div className="mt-2 text-sm">
                     <div className="font-semibold text-slate-900">Notes</div>
-                    <div className="whitespace-pre-wrap text-slate-700">{c.notes}</div>
+                    <div className="whitespace-pre-wrap text-slate-700">
+                      {c.notes}
+                    </div>
                   </div>
                   <div className="mt-2 text-sm">
-                    <div className="font-semibold text-slate-900">Prescription</div>
-                    <div className="whitespace-pre-wrap text-slate-700">{c.prescription}</div>
+                    <div className="font-semibold text-slate-900">
+                      Prescription
+                    </div>
+                    <div className="whitespace-pre-wrap text-slate-700">
+                      {c.prescription}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -235,18 +287,32 @@ export default function AppointmentsPage() {
         <h2 className="text-xl font-semibold text-slate-900">Lab Reports</h2>
         <div className="mt-3">
           {labReports.length === 0 ? (
-            <EmptyState title="No lab reports yet" subtitle="Reports become available after lab completion." />
+            <EmptyState
+              title="No lab reports yet"
+              subtitle="Reports become available after lab completion."
+            />
           ) : (
             <div className="space-y-2">
               {labReports.map((r) => (
-                <div key={r.id} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
+                <div
+                  key={r.id}
+                  className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/60 p-3"
+                >
                   <div className="text-sm">
-                    <div className="font-semibold text-slate-900">{r.testName}</div>
+                    <div className="font-semibold text-slate-900">
+                      {r.testName}
+                    </div>
                     <div className="text-slate-600">
-                      Appointment: <span className="font-mono">{r.appointmentId}</span>
+                      Appointment:{" "}
+                      <span className="font-mono">{r.appointmentId}</span>
                     </div>
                   </div>
-                  <a className="text-sm font-semibold text-blue-700 underline" href={r.reportUrl} target="_blank" rel="noreferrer">
+                  <a
+                    className="text-sm font-semibold text-blue-700 underline"
+                    href={resolveLabFileUrl(r.reportUrl)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
                     View Report
                   </a>
                 </div>
@@ -258,4 +324,3 @@ export default function AppointmentsPage() {
     </div>
   );
 }
-

@@ -249,7 +249,8 @@ router.post(
     }
 
     const filename = req.file.filename;
-    const reportUrl = config.publicServiceBaseUrl ? `${config.publicServiceBaseUrl}/uploads/${filename}` : `/uploads/${filename}`;
+    const base = String(config.publicServiceBaseUrl || '').replace(/\/$/, '');
+    const reportUrl = `${base}/uploads/${filename}`;
 
     labRequest.reportUrl = reportUrl;
     labRequest.reportFileName = filename;

@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { appointmentApi, billingApi, doctorApi } from '../api/client';
 import { useToast } from '../components/ToastProvider';
 import { EmptyState, LoadingState, PageHero, PrimaryButton, SoftButton, SurfaceCard } from '../components/ui';
+import { resolveLabFileUrl } from '../utils/labFileUrl';
 
 export default function AppointmentDetailPage() {
   const { id } = useParams();
@@ -173,7 +174,7 @@ export default function AppointmentDetailPage() {
                     <div className="mt-2 flex items-center justify-between gap-3">
                       <div className="text-xs text-slate-400">{r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</div>
                       {r.reportUrl ? (
-                        <a className="text-sm font-semibold text-blue-700 underline" href={r.reportUrl} target="_blank" rel="noreferrer">
+                        <a className="text-sm font-semibold text-blue-700 underline" href={resolveLabFileUrl(r.reportUrl)} target="_blank" rel="noreferrer">
                           Open Report
                         </a>
                       ) : null}

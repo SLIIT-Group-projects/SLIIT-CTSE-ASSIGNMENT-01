@@ -128,4 +128,3 @@ volumes:
   mongo-doctor-data:
   mongo-lab-data:
   mongo-billing-data:
-

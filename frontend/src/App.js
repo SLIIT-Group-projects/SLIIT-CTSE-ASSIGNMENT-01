@@ -114,6 +114,16 @@ export default function App() {
         }
       />
       <Route
+        path="/lab/completed"
+        element={
+          <RequireRole roles={['LAB_TECH']}>
+            <Layout>
+              <LabPage />
+            </Layout>
+          </RequireRole>
+        }
+      />
+      <Route
         path="/billing"
         element={
           <RequireRole roles={['PATIENT']}>
