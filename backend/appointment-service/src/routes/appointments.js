@@ -9,7 +9,7 @@ const Appointment = require('../models/Appointment');
 const DoctorSchedule = require('../models/DoctorSchedule');
 const { requireAuth, requireRole, requireInternal } = require('../middleware/auth');
 const config = require('../config');
-const { buildSlotsForRange, normalizeDateString } = require('../utils/timeSlots');
+const { addMinutesToHHMM, buildSlotsForRange, normalizeDateString, toMinutes } = require('../utils/timeSlots');
 
 const router = express.Router();
 const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'previous-reports');
@@ -43,6 +43,7 @@ const scheduleSchema = z.object({
         dayOfWeek: z.number().int().min(0).max(6),
         start: z.string().regex(/^\d{2}:\d{2}$/),
         end: z.string().regex(/^\d{2}:\d{2}$/),
+        plannedPatientCount: z.number().int().min(1).optional(),
       })
     )
     .min(1),
@@ -64,9 +65,29 @@ async function resolveAppointmentAmount(doctorId, authHeader) {
   return config.defaultAppointmentAmount;
 }
 
+function minutesForRange(range) {
+  return Math.max(toMinutes(range.end) - toMinutes(range.start), 0);
+}
+
+function rangeContainsStart(range, slotStart) {
+  const s = toMinutes(slotStart);
+  return s >= toMinutes(range.start) && s < toMinutes(range.end);
+}
+
+/**
+ * GET /doctor/schedule
+ * Doctor fetches current weekly available time ranges.
+ */
+router.get('/doctor/schedule', requireAuth, requireRole('DOCTOR'), async (req, res) => {
+  const doctorId = req.user.userId;
+  const schedule = await DoctorSchedule.findOne({ doctorId }).lean();
+  if (!schedule) return res.json({ hasSchedule: false, schedule: null });
+  return res.json({ hasSchedule: true, schedule });
+});
+
 /**
  * POST /doctor/schedule
- * Doctors define weekly available time ranges.
+ * Doctors define weekly available time ranges (initial setup only).
  */
 router.post('/doctor/schedule', requireAuth, requireRole('DOCTOR'), async (req, res) => {
   const parsed = scheduleSchema.safeParse(req.body);
@@ -75,14 +96,36 @@ router.post('/doctor/schedule', requireAuth, requireRole('DOCTOR'), async (req, 
   const doctorId = req.user.userId;
   const { slots } = parsed.data;
 
-  // Upsert schedule for this doctor.
-  await DoctorSchedule.updateOne(
+  const exists = await DoctorSchedule.exists({ doctorId });
+  if (exists) {
+    return res
+      .status(409)
+      .json({ message: 'Weekly schedule already exists. Use update endpoint to edit your schedule.' });
+  }
+
+  await DoctorSchedule.create({ doctorId, slots });
+  return res.status(201).json({ ok: true, created: true });
+});
+
+/**
+ * PUT /doctor/schedule
+ * Doctors edit an existing weekly schedule.
+ */
+router.put('/doctor/schedule', requireAuth, requireRole('DOCTOR'), async (req, res) => {
+  const parsed = scheduleSchema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid payload', errors: parsed.error.flatten() });
+
+  const doctorId = req.user.userId;
+  const { slots } = parsed.data;
+
+  const updated = await DoctorSchedule.findOneAndUpdate(
     { doctorId },
     { $set: { slots } },
-    { upsert: true }
+    { new: true }
   );
+  if (!updated) return res.status(404).json({ message: 'Weekly schedule not found. Create it first.' });
 
-  return res.json({ ok: true });
+  return res.json({ ok: true, updated: true, schedule: updated });
 });
 
 /**
@@ -112,7 +155,7 @@ router.get('/doctors/:doctorId/available-slots', requireAuth, requireRole('PATIE
 
   const availableSlots = [];
   for (const range of daySlots) {
-    availableSlots.push(...buildSlotsForRange(range, config.slotMinutes));
+    availableSlots.push(...buildSlotsForRange(range, config.slotMinutes).map((slot) => ({ ...slot, range })));
   }
 
   const existing = await Appointment.find({
@@ -122,7 +165,17 @@ router.get('/doctors/:doctorId/available-slots', requireAuth, requireRole('PATIE
   }).select('startTime');
 
   const bookedStartTimes = new Set(existing.map((a) => a.startTime));
-  const freeSlots = availableSlots.filter((s) => !bookedStartTimes.has(s.start));
+  const freeSlots = [];
+  for (const range of daySlots) {
+    const slotsForRange = buildSlotsForRange(range, config.slotMinutes).filter((s) => !bookedStartTimes.has(s.start));
+    const bookedInRange = existing.filter((a) => rangeContainsStart(range, a.startTime)).length;
+    const plannedCount =
+      Number.isInteger(range.plannedPatientCount) && range.plannedPatientCount > 0
+        ? range.plannedPatientCount
+        : buildSlotsForRange(range, config.slotMinutes).length;
+    const remaining = Math.max(plannedCount - bookedInRange, 0);
+    freeSlots.push(...slotsForRange.slice(0, remaining));
+  }
 
   return res.json({ date, slots: freeSlots });
 });
@@ -148,7 +201,9 @@ router.get('/appointments/quote', requireAuth, requireRole('PATIENT'), async (re
   const dayOfWeek = new Date(`${date}T00:00:00`).getDay();
   const dayRanges = schedule.slots.filter((s) => s.dayOfWeek === dayOfWeek);
   const availableSlots = [];
-  for (const range of dayRanges) availableSlots.push(...buildSlotsForRange(range, config.slotMinutes));
+  for (const range of dayRanges) {
+    availableSlots.push(...buildSlotsForRange(range, config.slotMinutes).map((slot) => ({ ...slot, range })));
+  }
 
   const requested = availableSlots.find((s) => s.start === slotStart);
   if (!requested) return res.status(400).json({ message: 'Requested slot is not available' });
@@ -157,18 +212,46 @@ router.get('/appointments/quote', requireAuth, requireRole('PATIENT'), async (re
   if (exists) return res.status(409).json({ message: 'Slot already booked' });
 
   const amount = await resolveAppointmentAmount(doctorId, req.headers.authorization);
+  const matchedRange = requested.range;
+  const durationMinutes = minutesForRange(matchedRange);
+  const slotsForDuration = Math.max(Math.floor(durationMinutes / config.slotMinutes), 1);
+  const totalPatientsPlanned =
+    Number.isInteger(matchedRange?.plannedPatientCount) && matchedRange.plannedPatientCount > 0
+      ? matchedRange.plannedPatientCount
+      : slotsForDuration;
 
   const currentCount = await Appointment.countDocuments({
     doctorId,
     date,
+    startTime: {
+      $gte: matchedRange.start,
+      $lt: matchedRange.end,
+    },
     status: { $in: ['PENDING_PAYMENT', 'CONFIRMED', 'COMPLETED'] },
   });
+  if (currentCount >= totalPatientsPlanned) {
+    return res.status(409).json({ message: 'Planned patient limit reached for this doctor session' });
+  }
+  const patientNumber = currentCount + 1;
+  const remainingPatientCount = Math.max(totalPatientsPlanned - patientNumber, 0);
+  const effectivePatientCount = Math.max(totalPatientsPlanned, 1);
+  const estimatedTimeMinutes = Math.max(Math.round(durationMinutes / effectivePatientCount), 1);
+  const estimatedWaitMinutes = Math.max((patientNumber - 1) * estimatedTimeMinutes, 0);
+  const estimatedAppointmentTime = addMinutesToHHMM(matchedRange.start, estimatedWaitMinutes);
 
   return res.json({
     quote: {
       amount,
       currency: 'LKR',
-      patientNumber: currentCount + 1,
+      patientNumber,
+      remainingPatientCount,
+      estimatedTimeMinutes,
+      estimatedWaitMinutes,
+      estimatedAppointmentTime,
+      totalPatientsPlanned,
+      sessionDurationMinutes: durationMinutes,
+      slotsForDuration,
+      requiredAppointmentTimeMinutes: config.slotMinutes,
       slot: requested,
       doctorId,
       date,
@@ -200,12 +283,40 @@ router.post('/appointments', requireAuth, requireRole('PATIENT'), async (req, re
   const dayRanges = schedule.slots.filter((s) => s.dayOfWeek === dayOfWeek);
 
   const availableSlots = [];
-  for (const r of dayRanges) availableSlots.push(...buildSlotsForRange(r, config.slotMinutes));
+  for (const r of dayRanges) {
+    availableSlots.push(...buildSlotsForRange(r, config.slotMinutes).map((slot) => ({ ...slot, range: r })));
+  }
   const requested = availableSlots.find((s) => s.start === slotStart);
   if (!requested) return res.status(400).json({ message: 'Requested slot is not available' });
 
   const exists = await Appointment.findOne({ doctorId, date, startTime: slotStart });
   if (exists) return res.status(409).json({ message: 'Slot already booked' });
+
+  const matchedRange = requested.range;
+  const durationMinutes = minutesForRange(matchedRange);
+  const slotsForDuration = Math.max(Math.floor(durationMinutes / config.slotMinutes), 1);
+  const totalPatientsPlanned =
+    Number.isInteger(matchedRange?.plannedPatientCount) && matchedRange.plannedPatientCount > 0
+      ? matchedRange.plannedPatientCount
+      : slotsForDuration;
+  const currentCount = await Appointment.countDocuments({
+    doctorId,
+    date,
+    startTime: {
+      $gte: matchedRange.start,
+      $lt: matchedRange.end,
+    },
+    status: { $in: ['PENDING_PAYMENT', 'CONFIRMED', 'COMPLETED'] },
+  });
+  if (currentCount >= totalPatientsPlanned) {
+    return res.status(409).json({ message: 'Planned patient limit reached for this doctor session' });
+  }
+  const patientNumber = currentCount + 1;
+  const remainingPatientCount = Math.max(totalPatientsPlanned - patientNumber, 0);
+  const effectivePatientCount = Math.max(totalPatientsPlanned, 1);
+  const estimatedTimeMinutes = Math.max(Math.round(durationMinutes / effectivePatientCount), 1);
+  const estimatedWaitMinutes = Math.max((patientNumber - 1) * estimatedTimeMinutes, 0);
+  const estimatedAppointmentTime = addMinutesToHHMM(matchedRange.start, estimatedWaitMinutes);
 
   const amount = await resolveAppointmentAmount(doctorId, authHeader);
 
@@ -216,6 +327,11 @@ router.post('/appointments', requireAuth, requireRole('PATIENT'), async (req, re
     startTime: requested.start,
     endTime: requested.end,
     status: 'PENDING_PAYMENT',
+    patientNumber,
+    remainingPatientCount,
+    estimatedTimeMinutes,
+    estimatedWaitMinutes,
+    estimatedAppointmentTime,
   });
 
   // Create the bill in Billing Service.

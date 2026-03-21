@@ -5,6 +5,7 @@ const slotSchema = new mongoose.Schema(
     dayOfWeek: { type: Number, required: true, min: 0, max: 6 }, // 0=Sun
     start: { type: String, required: true }, // HH:MM
     end: { type: String, required: true }, // HH:MM
+    plannedPatientCount: { type: Number, min: 1, default: null },
   },
   { _id: false }
 );

@@ -9,6 +9,11 @@ function toHHMM(totalMinutes) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+function addMinutesToHHMM(hhmm, minutes) {
+  const base = toMinutes(hhmm);
+  return toHHMM(base + minutes);
+}
+
 function buildSlotsForRange(range, slotMinutes) {
   const start = toMinutes(range.start);
   const end = toMinutes(range.end);
@@ -27,5 +32,5 @@ function normalizeDateString(dateStr) {
   return dateStr;
 }
 
-module.exports = { toMinutes, toHHMM, buildSlotsForRange, normalizeDateString };
+module.exports = { toMinutes, toHHMM, addMinutesToHHMM, buildSlotsForRange, normalizeDateString };
 
