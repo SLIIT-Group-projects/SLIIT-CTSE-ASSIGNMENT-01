@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { authApi } from '../api/client';
 import { useAuth } from '../auth/AuthContext';
 import AuthSplitView from '../components/AuthSplitView';
+import { useToast } from '../components/ToastProvider';
+import { PrimaryButton, SecondaryButton } from '../components/ui';
 
 import loginIllustration from '../assets/hospital-login-illustration.svg';
 import registerIllustration from '../assets/hospital-register-illustration.svg';
@@ -12,6 +14,7 @@ const roles = ['PATIENT', 'DOCTOR', 'LAB_TECH', 'ADMIN'];
 export default function AuthPage({ initialMode }) {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const { notify } = useToast();
 
   const [mode, setMode] = useState(initialMode);
 
@@ -60,9 +63,11 @@ export default function AuthPage({ initialMode }) {
     try {
       const resp = await authApi.post('/auth/login', { email: loginEmail, password: loginPassword });
       login(resp.data.token);
+      notify('Login successful', 'success');
       navigate('/dashboard');
     } catch (err) {
       setLoginError(err?.response?.data?.message || 'Login failed');
+      notify('Login failed', 'error');
     }
   }
 
@@ -91,6 +96,7 @@ export default function AuthPage({ initialMode }) {
     try {
       await authApi.post('/auth/register', { name, email: registerEmail, password: registerPassword, role });
       setRegisterSuccess('Account created. Please login.');
+      notify('Account created successfully', 'success');
       window.setTimeout(() => onSwitchToLogin(), 500);
     } catch (err) {
       const apiData = err?.response?.data;
@@ -104,6 +110,7 @@ export default function AuthPage({ initialMode }) {
         });
       }
       setRegisterError(apiData?.message || 'Registration failed');
+      notify('Registration failed', 'error');
     }
   }
 
@@ -115,7 +122,7 @@ export default function AuthPage({ initialMode }) {
       loginImage={loginImage}
       registerImage={registerImage}
       renderLogin={({ onSwitchToRegister: sw }) => (
-        <div>
+        <div className="animate-fade-in">
           <div className="mb-4">
             <div className="text-xs font-semibold tracking-wider text-blue-700 uppercase">Login</div>
             <div className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Welcome back</div>
@@ -132,7 +139,7 @@ export default function AuthPage({ initialMode }) {
             <div>
               <label className="text-sm font-medium text-slate-700">Email</label>
               <input
-                className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="input-modern"
                 value={loginEmail}
                 onChange={(e) => setLoginEmail(e.target.value)}
                 type="email"
@@ -143,7 +150,7 @@ export default function AuthPage({ initialMode }) {
             <div>
               <label className="text-sm font-medium text-slate-700">Password</label>
               <input
-                className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="input-modern"
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
                 type="password"
@@ -152,27 +159,24 @@ export default function AuthPage({ initialMode }) {
               />
             </div>
 
-            <button
-              className="w-full bg-blue-600 text-white py-2.5 rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-              type="submit"
-            >
+            <PrimaryButton className="w-full" type="submit">
               Sign in
-            </button>
+            </PrimaryButton>
           </form>
 
           <div className="mt-6">
-            <button
+            <SecondaryButton
               type="button"
-              className="w-full text-sm font-semibold text-blue-700 hover:text-blue-800 underline"
+              className="w-full"
               onClick={() => sw()}
             >
               Create an account
-            </button>
+            </SecondaryButton>
           </div>
         </div>
       )}
       renderRegister={({ onSwitchToLogin: sw }) => (
-        <div>
+        <div className="animate-fade-in">
           <div className="mb-4">
             <div className="text-xs font-semibold tracking-wider text-blue-700 uppercase">Register</div>
             <div className="mt-1 text-2xl font-bold tracking-tight text-slate-900">Create your role</div>
@@ -194,7 +198,7 @@ export default function AuthPage({ initialMode }) {
             <div>
               <label className="text-sm font-medium text-slate-700">Name</label>
               <input
-                className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="input-modern"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
@@ -207,7 +211,7 @@ export default function AuthPage({ initialMode }) {
             <div>
               <label className="text-sm font-medium text-slate-700">Email</label>
               <input
-                className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="input-modern"
                 value={registerEmail}
                 onChange={(e) => setRegisterEmail(e.target.value)}
                 type="email"
@@ -222,7 +226,7 @@ export default function AuthPage({ initialMode }) {
             <div>
               <label className="text-sm font-medium text-slate-700">Role</label>
               <select
-                className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="input-modern"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
                 required
@@ -241,7 +245,7 @@ export default function AuthPage({ initialMode }) {
             <div>
               <label className="text-sm font-medium text-slate-700">Password</label>
               <input
-                className="mt-1 w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="input-modern"
                 value={registerPassword}
                 onChange={(e) => setRegisterPassword(e.target.value)}
                 type="password"
@@ -255,22 +259,19 @@ export default function AuthPage({ initialMode }) {
               )}
             </div>
 
-            <button
-              className="w-full bg-blue-600 text-white py-2.5 rounded-xl hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-              type="submit"
-            >
+            <PrimaryButton className="w-full" type="submit">
               Create account
-            </button>
+            </PrimaryButton>
           </form>
 
           <div className="mt-6">
-            <button
+            <SecondaryButton
               type="button"
-              className="w-full text-sm font-semibold text-blue-700 hover:text-blue-800 underline"
+              className="w-full"
               onClick={() => sw()}
             >
               Back to login
-            </button>
+            </SecondaryButton>
           </div>
         </div>
       )}

@@ -1,10 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { appointmentApi, doctorApi } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
+import { useToast } from '../components/ToastProvider';
+import { EmptyState, LoadingState, PageHero, PrimaryButton, SurfaceCard } from '../components/ui';
 
 const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export default function DoctorPage() {
+  const { notify } = useToast();
   const [schedule, setSchedule] = useState(() => Array.from({ length: 7 }, () => ({ start: '', end: '' })));
   const [saving, setSaving] = useState(false);
 
@@ -34,14 +37,14 @@ export default function DoctorPage() {
       if (d.start && d.end) slots.push({ dayOfWeek: i, start: d.start, end: d.end });
     });
     if (slots.length === 0) {
-      alert('Add at least one availability range.');
+      notify('Add at least one availability range.', 'error');
       return;
     }
 
     setSaving(true);
     try {
       await appointmentApi.post('/doctor/schedule', { slots });
-      alert('Schedule saved.');
+      notify('Schedule saved.', 'success');
     } finally {
       setSaving(false);
     }
@@ -58,45 +61,59 @@ export default function DoctorPage() {
   );
 
   async function submitClinical(appointmentId) {
-    const draft = clinicalDrafts[appointmentId];
-    await doctorApi.put(`/doctor/appointments/${appointmentId}/clinical`, {
-      notes: draft?.notes || '',
-      prescription: draft?.prescription || '',
-    });
-    setClinicalDrafts((prev) => ({ ...prev, [appointmentId]: { notes: '', prescription: '' } }));
-    await refreshAppointments();
+    try {
+      const draft = clinicalDrafts[appointmentId];
+      await doctorApi.put(`/doctor/appointments/${appointmentId}/clinical`, {
+        notes: draft?.notes || '',
+        prescription: draft?.prescription || '',
+      });
+      setClinicalDrafts((prev) => ({ ...prev, [appointmentId]: { notes: '', prescription: '' } }));
+      await refreshAppointments();
+      notify('Clinical notes saved.', 'success');
+    } catch (_e) {
+      notify('Failed to save clinical notes.', 'error');
+    }
   }
 
   async function submitLabRequest(appointmentId) {
     const draft = labDrafts[appointmentId];
     if (!draft?.testName) {
-      alert('Enter test name.');
+      notify('Enter test name.', 'error');
       return;
     }
-    await doctorApi.post(`/doctor/appointments/${appointmentId}/lab-request`, {
-      testName: draft.testName,
-      notes: draft.notes || '',
-    });
-    setLabDrafts((prev) => ({ ...prev, [appointmentId]: { testName: '', notes: '' } }));
-    // Lab request is separate from appointment list; refresh appointments to reflect any status changes.
-    await refreshAppointments();
+    try {
+      await doctorApi.post(`/doctor/appointments/${appointmentId}/lab-request`, {
+        testName: draft.testName,
+        notes: draft.notes || '',
+      });
+      setLabDrafts((prev) => ({ ...prev, [appointmentId]: { testName: '', notes: '' } }));
+      await refreshAppointments();
+      notify('Lab request submitted.', 'success');
+    } catch (_e) {
+      notify('Failed to submit lab request.', 'error');
+    }
   }
 
   return (
     <div className="space-y-6">
-      <section className="bg-white border border-gray-200 rounded-lg p-5">
-        <h2 className="text-lg font-semibold text-gray-900">Weekly Availability</h2>
-        <p className="text-sm text-gray-600 mt-1">Define weekly available time ranges. Patients can book only inside these ranges.</p>
+      <PageHero
+        title="Doctor Panel"
+        subtitle="Set weekly availability, complete clinical notes, and trigger lab requests for confirmed appointments."
+      />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+      <SurfaceCard>
+        <h2 className="text-xl font-semibold text-slate-900">Weekly Availability</h2>
+        <p className="mt-1 text-sm text-slate-500">Define weekly available time ranges. Patients can book only inside these ranges.</p>
+
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
           {dayLabels.map((label, dayIndex) => (
-            <div key={label} className="border border-gray-100 rounded p-3">
-              <div className="text-sm font-semibold text-gray-800">{label}</div>
+            <div key={label} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
+              <div className="text-sm font-semibold text-slate-800">{label}</div>
               <div className="mt-2 grid grid-cols-2 gap-2">
-                <label className="text-xs text-gray-600">
+                <label className="text-xs text-slate-600">
                   Start
                   <input
-                    className="mt-1 w-full border border-gray-300 rounded px-2 py-1"
+                    className="input-modern py-2"
                     type="time"
                     value={schedule[dayIndex].start}
                     onChange={(e) => {
@@ -105,10 +122,10 @@ export default function DoctorPage() {
                     }}
                   />
                 </label>
-                <label className="text-xs text-gray-600">
+                <label className="text-xs text-slate-600">
                   End
                   <input
-                    className="mt-1 w-full border border-gray-300 rounded px-2 py-1"
+                    className="input-modern py-2"
                     type="time"
                     value={schedule[dayIndex].end}
                     onChange={(e) => {
@@ -123,31 +140,31 @@ export default function DoctorPage() {
         </div>
 
         <div className="mt-4">
-          <button
+          <PrimaryButton
             type="button"
             onClick={saveSchedule}
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+            className="disabled:opacity-50"
             disabled={saving}
           >
             {saving ? 'Saving...' : 'Save Schedule'}
-          </button>
+          </PrimaryButton>
         </div>
-      </section>
+      </SurfaceCard>
 
-      <section className="bg-white border border-gray-200 rounded-lg p-5">
-        <h2 className="text-lg font-semibold text-gray-900">Confirmed Appointments</h2>
+      <SurfaceCard>
+        <h2 className="text-xl font-semibold text-slate-900">Confirmed Appointments</h2>
         <div className="mt-3">
           {loadingAppts ? (
-            <div className="text-sm text-gray-600">Loading...</div>
+            <LoadingState />
           ) : cards.length === 0 ? (
-            <div className="text-sm text-gray-600">No confirmed appointments yet.</div>
+            <EmptyState title="No confirmed appointments" subtitle="Appointments will appear once billing is confirmed." />
           ) : (
             <div className="space-y-4">
               {cards.map(({ a, clinical, lab }) => (
-                <div key={a._id} className="border border-gray-100 rounded p-4">
+                <div key={a._id} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <div className="text-sm text-gray-600">Appointment ID</div>
+                      <div className="text-sm text-slate-600">Appointment ID</div>
                       <div className="font-mono text-sm">{a._id}</div>
                       <div className="mt-1 text-sm">
                         {a.date} {a.startTime} - {a.endTime}
@@ -160,9 +177,9 @@ export default function DoctorPage() {
 
                   <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <div className="text-sm font-semibold text-gray-800">Notes</div>
+                      <div className="text-sm font-semibold text-slate-800">Notes</div>
                       <textarea
-                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                        className="input-modern mt-0"
                         rows={3}
                         value={clinical.notes}
                         onChange={(e) => setClinicalDrafts((prev) => ({ ...prev, [a._id]: { ...clinical, notes: e.target.value } }))}
@@ -170,9 +187,9 @@ export default function DoctorPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <div className="text-sm font-semibold text-gray-800">Prescription</div>
+                      <div className="text-sm font-semibold text-slate-800">Prescription</div>
                       <textarea
-                        className="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                        className="input-modern mt-0"
                         rows={3}
                         value={clinical.prescription}
                         onChange={(e) => setClinicalDrafts((prev) => ({ ...prev, [a._id]: { ...clinical, prescription: e.target.value } }))}
@@ -182,22 +199,21 @@ export default function DoctorPage() {
                   </div>
 
                   <div className="mt-4 flex gap-2">
-                    <button
+                    <PrimaryButton
                       type="button"
                       onClick={() => submitClinical(a._id)}
-                      className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
                     >
                       Save Notes & Prescription
-                    </button>
+                    </PrimaryButton>
                   </div>
 
-                  <div className="mt-5 border-t pt-4">
-                    <div className="text-sm font-semibold text-gray-800">Request Lab Test</div>
+                  <div className="mt-5 border-t border-slate-200 pt-4">
+                    <div className="text-sm font-semibold text-slate-800">Request Lab Test</div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
                       <label className="text-sm">
                         Test Name
                         <input
-                          className="mt-1 w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                          className="input-modern"
                           value={lab.testName}
                           onChange={(e) => setLabDrafts((prev) => ({ ...prev, [a._id]: { ...lab, testName: e.target.value } }))}
                           placeholder="e.g., CBC, X-Ray"
@@ -206,27 +222,27 @@ export default function DoctorPage() {
                       <label className="text-sm">
                         Lab Notes (optional)
                         <input
-                          className="mt-1 w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                          className="input-modern"
                           value={lab.notes}
                           onChange={(e) => setLabDrafts((prev) => ({ ...prev, [a._id]: { ...lab, notes: e.target.value } }))}
                           placeholder="Preparation notes"
                         />
                       </label>
                     </div>
-                    <button
+                    <PrimaryButton
                       type="button"
                       onClick={() => submitLabRequest(a._id)}
-                      className="mt-3 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+                      className="mt-3"
                     >
                       Request Lab Test
-                    </button>
+                    </PrimaryButton>
                   </div>
                 </div>
               ))}
             </div>
           )}
         </div>
-      </section>
+      </SurfaceCard>
     </div>
   );
 }

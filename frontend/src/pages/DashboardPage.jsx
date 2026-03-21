@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { EmptyState, PageHero, StatCard } from '../components/ui';
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -22,22 +23,45 @@ export default function DashboardPage() {
     cards.push({ to: '/admin', title: 'Admin Billing', desc: 'Verify payments and confirm services' });
   }
 
+  const stats = [
+    { label: 'Appointments', value: role === 'PATIENT' ? 'Track' : 'Manage' },
+    { label: 'Bills', value: role === 'PATIENT' || role === 'ADMIN' ? 'Live' : 'Monitor' },
+    { label: 'Reports', value: role === 'PATIENT' || role === 'LAB_TECH' ? 'Available' : 'Overview' },
+  ];
+
   return (
-    <div className="space-y-4">
-      <div className="bg-white border border-gray-200 rounded-lg p-5">
-        <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
-        <p className="text-sm text-gray-600 mt-1">Logged in as <span className="font-semibold">{role}</span></p>
+    <div className="space-y-6">
+      <PageHero
+        title="Healthcare Operations Dashboard"
+        subtitle={`Logged in as ${role}. Use your role-based modules to manage care workflows with confidence.`}
+      />
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {stats.map((item) => (
+          <StatCard key={item.label} label={item.label} value={item.value} />
+        ))}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {cards.map((c) => (
-          <Link key={c.to} to={c.to} className="bg-white border border-gray-200 rounded-lg p-5 hover:border-gray-400">
-            <div className="font-semibold text-gray-900">{c.title}</div>
-            <div className="text-sm text-gray-600 mt-1">{c.desc}</div>
+          <Link
+            key={c.to}
+            to={c.to}
+            className="card-surface block transition hover:-translate-y-1 hover:shadow-xl hover:shadow-blue-100/70"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-lg font-semibold text-[#191919]">{c.title}</div>
+                <div className="mt-1 text-sm text-[#A3A3A3]">{c.desc}</div>
+              </div>
+              <div className="rounded-full bg-[#FAD069] px-3 py-1 text-xs font-semibold text-[#191919]">
+                Open
+              </div>
+            </div>
           </Link>
         ))}
         {cards.length === 0 ? (
-          <div className="text-sm text-gray-600">No dashboard cards for this role.</div>
+          <EmptyState title="No dashboard modules" subtitle="No dashboard modules are available for this role." />
         ) : null}
       </div>
     </div>

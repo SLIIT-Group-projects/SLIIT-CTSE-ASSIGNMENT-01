@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { appointmentApi, billingApi, doctorApi, labApi } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
+import { useToast } from '../components/ToastProvider';
+import { EmptyState, PageHero, PrimaryButton, SoftButton, SurfaceCard } from '../components/ui';
 
 // NOTE: this file imports from './api' to keep imports consistent across pages.
 
@@ -11,6 +13,7 @@ function todayISO() {
 }
 
 export default function AppointmentsPage() {
+  const { notify } = useToast();
   const [doctors, setDoctors] = useState([]);
   const [doctorId, setDoctorId] = useState('');
   const [date, setDate] = useState(todayISO());
@@ -67,31 +70,46 @@ export default function AppointmentsPage() {
   }, []);
 
   async function book(slotStart) {
-    const payload = { doctorId, date, slotStart };
-    await appointmentApi.post('/appointments', payload);
-    await refreshAll();
-    await loadSlots();
+    try {
+      const payload = { doctorId, date, slotStart };
+      await appointmentApi.post('/appointments', payload);
+      await refreshAll();
+      await loadSlots();
+      notify('Appointment booked successfully', 'success');
+    } catch (_e) {
+      notify('Failed to book appointment', 'error');
+    }
   }
 
   async function uploadSlip(appointment, file) {
-    const fd = new FormData();
-    fd.append('file', file);
-    await billingApi.post(`/billing/appointments/${appointment._id}/upload-slip`, fd, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    await refreshAll();
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      await billingApi.post(`/billing/appointments/${appointment._id}/upload-slip`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      await refreshAll();
+      notify('Payment slip uploaded', 'success');
+    } catch (_e) {
+      notify('Could not upload payment slip', 'error');
+    }
   }
 
   const groupedPrescriptions = useMemo(() => prescriptions || [], [prescriptions]);
 
   return (
     <div className="space-y-6">
-      <section className="bg-white border border-gray-200 rounded-lg p-5">
-        <h2 className="text-lg font-semibold text-gray-900">Book an Appointment</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+      <PageHero
+        title="Appointments"
+        subtitle="Book slots, upload payment slips, and track prescriptions and lab reports in one place."
+      />
+
+      <SurfaceCard>
+        <h2 className="text-xl font-semibold text-slate-900">Book an Appointment</h2>
+        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
           <div>
-            <label className="text-sm text-gray-700">Doctor</label>
-            <select className="mt-1 w-full border border-gray-300 rounded px-3 py-2" value={doctorId} onChange={(e) => setDoctorId(e.target.value)}>
+            <label className="text-sm text-slate-700">Doctor</label>
+            <select className="input-modern" value={doctorId} onChange={(e) => setDoctorId(e.target.value)}>
               {doctors.map((d) => (
                 <option key={d} value={d}>
                   {d}
@@ -101,32 +119,32 @@ export default function AppointmentsPage() {
             </select>
           </div>
           <div>
-            <label className="text-sm text-gray-700">Date</label>
-            <input className="mt-1 w-full border border-gray-300 rounded px-3 py-2" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            <label className="text-sm text-slate-700">Date</label>
+            <input className="input-modern" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
           <div className="flex items-end">
-            <button
+            <PrimaryButton
               type="button"
               onClick={() => loadSlots()}
-              className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+              className="w-full disabled:cursor-not-allowed disabled:opacity-50"
               disabled={!canBook || loading}
             >
               {loading ? 'Loading...' : 'View Available Slots'}
-            </button>
+            </PrimaryButton>
           </div>
         </div>
 
         <div className="mt-4">
-          <div className="text-sm text-gray-600 mb-2">Available slots</div>
+          <div className="mb-2 text-sm text-slate-500">Available slots</div>
           {slots.length === 0 ? (
-            <div className="text-sm text-gray-500">No slots found for selected doctor/date.</div>
+            <EmptyState title="No slots available" subtitle="No slots found for selected doctor/date." />
           ) : (
             <div className="flex flex-wrap gap-2">
               {slots.map((s) => (
                 <button
                   key={`${s.start}-${s.end}`}
                   type="button"
-                  className="px-3 py-1 rounded border border-gray-200 hover:border-gray-400 bg-white"
+                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:-translate-y-0.5 hover:border-blue-300 hover:text-blue-700"
                   onClick={() => book(s.start)}
                 >
                   {s.start} - {s.end}
@@ -135,42 +153,38 @@ export default function AppointmentsPage() {
             </div>
           )}
         </div>
-      </section>
+      </SurfaceCard>
 
-      <section className="bg-white border border-gray-200 rounded-lg p-5">
+      <SurfaceCard>
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold text-gray-900">Your Appointments</h2>
-          <button
-            type="button"
-            onClick={() => refreshAll().catch(() => {})}
-            className="text-sm rounded border border-gray-200 px-3 py-1 hover:border-gray-400 bg-white"
-          >
+          <h2 className="text-xl font-semibold text-slate-900">Your Appointments</h2>
+          <SoftButton type="button" onClick={() => refreshAll().catch(() => {})} className="px-4 py-2">
             Refresh
-          </button>
+          </SoftButton>
         </div>
-        <div className="mt-3 overflow-x-auto">
-          <table className="min-w-full text-sm">
+        <div className="table-shell mt-4">
+          <table className="table-base">
             <thead>
-              <tr className="text-left text-gray-600">
-                <th className="py-2">Date</th>
-                <th className="py-2">Time</th>
-                <th className="py-2">Doctor</th>
-                <th className="py-2">Status</th>
-                <th className="py-2">Payment Slip</th>
+              <tr>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Doctor</th>
+                <th>Status</th>
+                <th>Payment Slip</th>
               </tr>
             </thead>
             <tbody>
               {appointments.map((a) => (
-                <tr key={a._id} className="border-t border-gray-100">
-                  <td className="py-2">{a.date}</td>
-                  <td className="py-2">
+                <tr key={a._id} className="table-row">
+                  <td>{a.date}</td>
+                  <td>
                     {a.startTime} - {a.endTime}
                   </td>
-                  <td className="py-2">{a.doctorId}</td>
-                  <td className="py-2">
+                  <td>{a.doctorId}</td>
+                  <td>
                     <StatusBadge status={a.status} />
                   </td>
-                  <td className="py-2">
+                  <td>
                     {a.status === 'PENDING_PAYMENT' ? (
                       <input
                         type="file"
@@ -179,17 +193,17 @@ export default function AppointmentsPage() {
                           const file = e.target.files?.[0];
                           if (file) await uploadSlip(a, file);
                         }}
-                        className="text-sm"
+                        className="text-sm text-slate-600"
                       />
                     ) : (
-                      <span className="text-sm text-gray-500">N/A</span>
+                      <span className="text-sm text-slate-400">N/A</span>
                     )}
                   </td>
                 </tr>
               ))}
               {appointments.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-4 text-sm text-gray-500">
+                  <td colSpan={5} className="px-4 py-6 text-sm text-slate-500">
                     No appointments yet.
                   </td>
                 </tr>
@@ -197,51 +211,51 @@ export default function AppointmentsPage() {
             </tbody>
           </table>
         </div>
-      </section>
+      </SurfaceCard>
 
-      <section className="bg-white border border-gray-200 rounded-lg p-5">
-        <h2 className="text-lg font-semibold text-gray-900">Prescriptions</h2>
+      <SurfaceCard>
+        <h2 className="text-xl font-semibold text-slate-900">Prescriptions</h2>
         <div className="mt-3">
           {groupedPrescriptions.length === 0 ? (
-            <div className="text-sm text-gray-500">No prescriptions available yet.</div>
+            <EmptyState title="No prescriptions yet" subtitle="Prescriptions will appear here after doctor updates." />
           ) : (
             <div className="space-y-3">
               {groupedPrescriptions.map((c) => (
-                <div key={c._id} className="border border-gray-100 rounded p-3">
-                  <div className="text-sm text-gray-700">
+                <div key={c._id} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+                  <div className="text-sm text-slate-600">
                     Appointment: <span className="font-mono">{c.appointmentId}</span>
                   </div>
                   <div className="mt-2 text-sm">
-                    <div className="font-semibold">Notes</div>
-                    <div className="text-gray-700 whitespace-pre-wrap">{c.notes}</div>
+                    <div className="font-semibold text-slate-900">Notes</div>
+                    <div className="whitespace-pre-wrap text-slate-700">{c.notes}</div>
                   </div>
                   <div className="mt-2 text-sm">
-                    <div className="font-semibold">Prescription</div>
-                    <div className="text-gray-700 whitespace-pre-wrap">{c.prescription}</div>
+                    <div className="font-semibold text-slate-900">Prescription</div>
+                    <div className="whitespace-pre-wrap text-slate-700">{c.prescription}</div>
                   </div>
                 </div>
               ))}
             </div>
           )}
         </div>
-      </section>
+      </SurfaceCard>
 
-      <section className="bg-white border border-gray-200 rounded-lg p-5">
-        <h2 className="text-lg font-semibold text-gray-900">Lab Reports (Quick View)</h2>
+      <SurfaceCard>
+        <h2 className="text-xl font-semibold text-slate-900">Lab Reports</h2>
         <div className="mt-3">
           {labReports.length === 0 ? (
-            <div className="text-sm text-gray-500">No lab reports available yet.</div>
+            <EmptyState title="No lab reports yet" subtitle="Reports become available after lab completion." />
           ) : (
             <div className="space-y-2">
               {labReports.map((r) => (
-                <div key={r.id} className="flex items-center justify-between border border-gray-100 rounded p-3">
+                <div key={r.id} className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50/60 p-3">
                   <div className="text-sm">
-                    <div className="font-semibold">{r.testName}</div>
-                    <div className="text-gray-600">
+                    <div className="font-semibold text-slate-900">{r.testName}</div>
+                    <div className="text-slate-600">
                       Appointment: <span className="font-mono">{r.appointmentId}</span>
                     </div>
                   </div>
-                  <a className="text-sm text-blue-700 underline" href={r.reportUrl} target="_blank" rel="noreferrer">
+                  <a className="text-sm font-semibold text-blue-700 underline" href={r.reportUrl} target="_blank" rel="noreferrer">
                     View Report
                   </a>
                 </div>
@@ -249,7 +263,7 @@ export default function AppointmentsPage() {
             </div>
           )}
         </div>
-      </section>
+      </SurfaceCard>
     </div>
   );
 }

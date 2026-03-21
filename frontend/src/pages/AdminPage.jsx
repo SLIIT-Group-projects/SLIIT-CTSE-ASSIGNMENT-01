@@ -1,11 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import StatusBadge from '../components/StatusBadge';
 import { billingApi } from '../api/client';
+import Modal from '../components/Modal';
+import { useToast } from '../components/ToastProvider';
+import { EmptyState, LoadingState, PageHero, PrimaryButton, SurfaceCard } from '../components/ui';
 
 export default function AdminPage() {
+  const { notify } = useToast();
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(false);
   const [busyRef, setBusyRef] = useState(null);
+  const [rejectCandidate, setRejectCandidate] = useState(null);
 
   async function refresh() {
     setLoading(true);
@@ -30,6 +35,9 @@ export default function AdminPage() {
         await billingApi.put(`/billing/lab/${bill.referenceId}/verify`, { verified: true, method });
       }
       await refresh();
+      notify('Payment verified successfully.', 'success');
+    } catch (_e) {
+      notify('Failed to verify payment.', 'error');
     } finally {
       setBusyRef(null);
     }
@@ -44,38 +52,50 @@ export default function AdminPage() {
         await billingApi.put(`/billing/lab/${bill.referenceId}/verify`, { verified: false });
       }
       await refresh();
+      notify('Payment rejected.', 'success');
+    } catch (_e) {
+      notify('Failed to reject payment.', 'error');
     } finally {
       setBusyRef(null);
+      setRejectCandidate(null);
     }
   }
 
   return (
     <div className="space-y-5">
-      <section className="bg-white border border-gray-200 rounded-lg p-5">
-        <h2 className="text-lg font-semibold text-gray-900">Admin - Verify Payments</h2>
-        <p className="text-sm text-gray-600 mt-1">Verify appointment and lab payments. On approval, services will be confirmed/paid.</p>
+      <PageHero
+        title="Admin Panel"
+        subtitle="Review payment evidence and approve or reject billing requests across services."
+      />
+      <SurfaceCard>
+        <h2 className="text-xl font-semibold text-slate-900">Verify Payments</h2>
+        <p className="mt-1 text-sm text-slate-500">Verify appointment and lab payments. On approval, services are confirmed as paid.</p>
 
         {loading ? (
-          <div className="mt-4 text-sm text-gray-600">Loading...</div>
+          <div className="mt-4">
+            <LoadingState />
+          </div>
         ) : bills.length === 0 ? (
-          <div className="mt-4 text-sm text-gray-500">No bills found.</div>
+          <div className="mt-4">
+            <EmptyState title="No pending bills" subtitle="When patients upload slips, bills will appear here for review." />
+          </div>
         ) : (
           <div className="mt-4 space-y-4">
             {bills.map((b) => (
-              <div key={b._id} className="border border-gray-100 rounded p-4">
+              <div key={b._id} className="rounded-2xl border border-slate-100 bg-slate-50/70 p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div>
-                    <div className="font-semibold text-gray-900 text-sm">
+                    <div className="text-sm font-semibold text-slate-900">
                       {b.billType} bill for <span className="font-mono">{b.referenceId}</span>
                     </div>
-                    <div className="text-sm text-gray-600 mt-1">Amount: {b.amount}</div>
-                    <div className="text-sm text-gray-600 mt-1">Payment Method: {b.paymentMethod || '—'}</div>
+                    <div className="mt-1 text-sm text-slate-600">Amount: {b.amount}</div>
+                    <div className="mt-1 text-sm text-slate-600">Payment Method: {b.paymentMethod || '—'}</div>
                     {b.paymentSlipUrl ? (
-                      <a className="text-sm text-blue-700 underline" href={b.paymentSlipUrl} target="_blank" rel="noreferrer">
+                      <a className="text-sm font-semibold text-blue-700 underline" href={b.paymentSlipUrl} target="_blank" rel="noreferrer">
                         View slip
                       </a>
                     ) : (
-                      <div className="text-sm text-gray-500 mt-1">No slip uploaded</div>
+                      <div className="mt-1 text-sm text-slate-500">No slip uploaded</div>
                     )}
                   </div>
                   <div>
@@ -85,27 +105,27 @@ export default function AdminPage() {
 
                 {b.status === 'PENDING_PAYMENT' ? (
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <button
+                    <PrimaryButton
                       type="button"
                       disabled={busyRef === `${b.billType}:${b.referenceId}`}
                       onClick={() => verifyBill(b, 'BANK_TRANSFER')}
-                      className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
+                      className="px-4 py-2 disabled:opacity-50"
                     >
                       Verify Bank Transfer
-                    </button>
-                    <button
+                    </PrimaryButton>
+                    <PrimaryButton
                       type="button"
                       disabled={busyRef === `${b.billType}:${b.referenceId}`}
                       onClick={() => verifyBill(b, 'PHYSICAL')}
-                      className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-50"
+                      className="px-4 py-2 disabled:opacity-50"
                     >
                       Approve Physical Payment
-                    </button>
+                    </PrimaryButton>
                     <button
                       type="button"
                       disabled={busyRef === `${b.billType}:${b.referenceId}`}
-                      onClick={() => rejectBill(b)}
-                      className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 disabled:opacity-50"
+                      onClick={() => setRejectCandidate(b)}
+                      className="rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-100 disabled:opacity-50"
                     >
                       Reject
                     </button>
@@ -115,7 +135,16 @@ export default function AdminPage() {
             ))}
           </div>
         )}
-      </section>
+      </SurfaceCard>
+      <Modal
+        open={Boolean(rejectCandidate)}
+        title="Reject payment?"
+        description="This action marks the bill as rejected and requires a new payment attempt."
+        onClose={() => setRejectCandidate(null)}
+        onConfirm={() => rejectCandidate && rejectBill(rejectCandidate)}
+        confirmText="Confirm Reject"
+        busy={Boolean(rejectCandidate) && busyRef === `${rejectCandidate.billType}:${rejectCandidate.referenceId}`}
+      />
     </div>
   );
 }

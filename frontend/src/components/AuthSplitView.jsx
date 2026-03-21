@@ -14,88 +14,34 @@ export default function AuthSplitView({
   loginImage,
   registerImage,
 }) {
-  const TRANSITION_MS = 700;
-
-  const loginImageOffset = mode === 'login' ? 0 : -100;
-  const loginFormOffset = mode === 'login' ? 100 : 200;
-  const registerFormOffset = mode === 'register' ? 0 : -100;
-  const registerImageOffset = mode === 'register' ? 100 : 200;
-
-  const panelStyle = (offset, visible) => ({
-    transform: `translateX(${offset}%)`,
-    opacity: visible ? 1 : 0,
-    pointerEvents: visible ? 'auto' : 'none',
-    transitionDuration: `${TRANSITION_MS}ms`,
-  });
+  const isLogin = mode === 'login';
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-8">
-      <div className="relative w-full max-w-6xl min-h-[640px] rounded-3xl overflow-hidden shadow-xl ring-1 ring-slate-200 bg-white">
-        {/* Left: Login Image */}
-        <div
-          className="absolute top-0 left-0 w-1/2 h-full bg-gradient-to-br from-blue-50 via-white to-white transition-all duration-700 ease-in-out p-10 flex flex-col justify-center"
-          style={panelStyle(loginImageOffset, mode === 'login')}
-        >
-          <div className="max-w-md">
-            <div className="text-xs font-semibold tracking-wider text-blue-700 uppercase">Hospital Portal</div>
-            <div className="mt-2 text-3xl font-bold tracking-tight text-slate-900">Care, confirmed payments, and records.</div>
-            <div className="mt-3 text-sm text-slate-600">
-              A secure workflow for appointments, billing verification, lab payments, and report uploads.
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-[#c9f2ea] via-[#e8f6ff] to-[#f7fefe] px-4 py-8 md:py-12">
+      <div className="pointer-events-none absolute -left-16 -top-24 h-80 w-80 rounded-full bg-[#14967F]/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-20 -right-10 h-72 w-72 rounded-full bg-blue-300/30 blur-3xl" />
+
+      <div className="relative mx-auto flex min-h-[82vh] w-full max-w-6xl items-center">
+        <div className="grid w-full grid-cols-1 overflow-hidden rounded-3xl bg-white/80 shadow-2xl shadow-[#14967F]/10 ring-1 ring-white/70 backdrop-blur lg:grid-cols-2">
+          <div className="bg-gradient-to-br from-white to-[#ecfaf6] p-8 lg:p-12">
+            <div className="max-w-md">
+              <div className="inline-flex rounded-full bg-white px-3 py-1 text-xs font-semibold uppercase tracking-wider text-[#14967F] ring-1 ring-[#14967F]/20">
+                Healthcare SaaS
+              </div>
+              <h1 className="mt-4 text-3xl font-bold tracking-tight text-slate-900 md:text-4xl">
+                {isLogin ? 'Connected care starts here.' : 'Create your secure access.'}
+              </h1>
+              <p className="mt-3 text-sm text-slate-600 md:text-base">
+                Unified access for appointments, billing, clinical workflows, and lab operations.
+              </p>
             </div>
+            <div className="mt-8">{isLogin ? loginImage : registerImage}</div>
           </div>
-          <div className="mt-8">{loginImage}</div>
 
-          <div className="mt-10">
-            <button
-              type="button"
-              className="text-sm font-semibold text-blue-700 hover:text-blue-800 underline"
-              onClick={onSwitchToRegister}
-            >
-              Create an account
-            </button>
-          </div>
-        </div>
-
-        {/* Right: Login Form */}
-        <div
-          className="absolute top-0 left-0 w-1/2 h-full p-10 bg-white transition-all duration-700 ease-in-out flex items-center justify-center"
-          style={panelStyle(loginFormOffset, mode === 'login')}
-        >
-          <div className="w-full max-w-md">
-            {renderLogin({ onSwitchToRegister })}
-          </div>
-        </div>
-
-        {/* Left: Register Form */}
-        <div
-          className="absolute top-0 left-0 w-1/2 h-full p-10 bg-white transition-all duration-700 ease-in-out flex items-center justify-center"
-          style={panelStyle(registerFormOffset, mode === 'register')}
-        >
-          <div className="w-full max-w-md">
-            {renderRegister({ onSwitchToLogin })}
-          </div>
-        </div>
-
-        {/* Right: Register Image */}
-        <div
-          className="absolute top-0 left-0 w-1/2 h-full bg-gradient-to-br from-blue-50 via-white to-white transition-all duration-700 ease-in-out p-10 flex flex-col justify-center"
-          style={panelStyle(registerImageOffset, mode === 'register')}
-        >
-          <div className="max-w-md">
-            <div className="text-xs font-semibold tracking-wider text-blue-700 uppercase">Join as a role</div>
-            <div className="mt-2 text-3xl font-bold tracking-tight text-slate-900">Patients, Doctors, Lab Tech, Admin.</div>
-            <div className="mt-3 text-sm text-slate-600">Your role controls what you can book, upload, verify, and view.</div>
-          </div>
-          <div className="mt-8">{registerImage}</div>
-
-          <div className="mt-10">
-            <button
-              type="button"
-              className="text-sm font-semibold text-blue-700 hover:text-blue-800 underline"
-              onClick={onSwitchToLogin}
-            >
-              Already have an account?
-            </button>
+          <div className="p-6 md:p-10 lg:p-12">
+            <div className="card-glass">
+              {isLogin ? renderLogin({ onSwitchToRegister }) : renderRegister({ onSwitchToLogin })}
+            </div>
           </div>
         </div>
       </div>

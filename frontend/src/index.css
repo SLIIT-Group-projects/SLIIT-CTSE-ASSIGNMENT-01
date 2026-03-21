@@ -8,12 +8,87 @@
   }
   body {
     margin: 0;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-      sans-serif;
+    font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    @apply bg-slate-50 text-slate-900;
+    @apply min-h-screen bg-[#F4F4F5] text-[#191919];
+  }
+  #root {
+    @apply min-h-screen;
+  }
+}
+
+@layer components {
+  .card-surface {
+    @apply rounded-2xl bg-white p-6 shadow-lg ring-1 ring-black/5 transition duration-200 hover:-translate-y-0.5 hover:shadow-xl;
+  }
+
+  .card-glass {
+    @apply rounded-2xl bg-white/75 p-6 shadow-lg ring-1 ring-white/70 backdrop-blur;
+  }
+
+  .btn-primary {
+    @apply rounded-full bg-[#14967F] px-6 py-3 text-sm font-semibold text-white transition duration-200 hover:scale-[1.01] hover:bg-[#127a68];
+  }
+
+  .btn-secondary {
+    @apply rounded-full bg-[#191919] px-6 py-3 text-sm font-semibold text-white transition duration-200 hover:scale-[1.01] hover:opacity-90;
+  }
+
+  .btn-soft {
+    @apply rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-[#191919] transition hover:-translate-y-0.5 hover:border-slate-300;
+  }
+
+  .input-modern {
+    @apply mt-1 w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-[#191919] outline-none transition focus:border-[#14967F] focus:ring-2 focus:ring-[#14967F]/30;
+  }
+
+  .table-shell {
+    @apply overflow-x-auto rounded-2xl bg-white shadow-lg ring-1 ring-black/5;
+  }
+
+  .table-base {
+    @apply min-w-full bg-white text-sm text-[#191919];
+  }
+
+  .table-base thead tr {
+    @apply bg-[#F7F7F8] text-left text-xs font-semibold uppercase tracking-wide text-[#A3A3A3];
+  }
+
+  .table-base th {
+    @apply px-4 py-3;
+  }
+
+  .table-base td {
+    @apply px-4 py-3 text-slate-700;
+  }
+
+  .table-row {
+    @apply border-t border-slate-100 transition hover:bg-[#F1F7F5];
+  }
+}
+
+@layer utilities {
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in {
+    animation: fadeInUp 420ms ease-out;
+  }
+
+  .health-gradient-bg {
+    background-image:
+      radial-gradient(circle at 8% 10%, rgba(20, 150, 127, 0.16), transparent 32%),
+      radial-gradient(circle at 92% 10%, rgba(37, 99, 235, 0.14), transparent 28%),
+      linear-gradient(140deg, #f5fdfb 0%, #f8fbff 46%, #ffffff 100%);
   }
 }
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import StatusBadge from '../components/StatusBadge';
 import { billingApi } from '../api/client';
+import { EmptyState, LoadingState, PageHero, SurfaceCard } from '../components/ui';
 
 export default function BillingPage() {
   const [bills, setBills] = useState([]);
@@ -22,42 +23,47 @@ export default function BillingPage() {
 
   return (
     <div className="space-y-5">
-      <section className="bg-white border border-gray-200 rounded-lg p-5">
-        <h2 className="text-lg font-semibold text-gray-900">Your Bills</h2>
-        <p className="text-sm text-gray-600 mt-1">Appointment and lab payments appear here.</p>
+      <PageHero title="Billing" subtitle="Track appointment and lab payments in one clean view." />
+      <SurfaceCard>
+        <h2 className="text-xl font-semibold text-slate-900">Your Bills</h2>
+        <p className="mt-1 text-sm text-slate-500">Appointment and lab payments appear here.</p>
 
         {loading ? (
-          <div className="mt-4 text-sm text-gray-600">Loading...</div>
+          <div className="mt-4">
+            <LoadingState />
+          </div>
         ) : bills.length === 0 ? (
-          <div className="mt-4 text-sm text-gray-500">No bills yet.</div>
+          <div className="mt-4">
+            <EmptyState title="No bills yet" subtitle="Appointment and lab bills will appear here." />
+          </div>
         ) : (
-          <div className="overflow-x-auto mt-4">
-            <table className="min-w-full text-sm">
+          <div className="table-shell mt-4">
+            <table className="table-base">
               <thead>
-                <tr className="text-left text-gray-600">
-                  <th className="py-2">Type</th>
-                  <th className="py-2">Reference</th>
-                  <th className="py-2">Amount</th>
-                  <th className="py-2">Status</th>
-                  <th className="py-2">Slip</th>
+                <tr>
+                  <th>Type</th>
+                  <th>Reference</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Slip</th>
                 </tr>
               </thead>
               <tbody>
                 {bills.map((b) => (
-                  <tr key={b._id} className="border-t border-gray-100">
-                    <td className="py-2">{b.billType}</td>
-                    <td className="py-2 font-mono">{b.referenceId}</td>
-                    <td className="py-2">{b.amount}</td>
-                    <td className="py-2">
+                  <tr key={b._id} className="table-row">
+                    <td>{b.billType}</td>
+                    <td className="font-mono">{b.referenceId}</td>
+                    <td>{b.amount}</td>
+                    <td>
                       <StatusBadge status={b.status} />
                     </td>
-                    <td className="py-2">
+                    <td>
                       {b.paymentSlipUrl ? (
-                        <a className="text-sm text-blue-700 underline" href={b.paymentSlipUrl} target="_blank" rel="noreferrer">
+                        <a className="text-sm font-semibold text-blue-700 underline" href={b.paymentSlipUrl} target="_blank" rel="noreferrer">
                           View
                         </a>
                       ) : (
-                        <span className="text-sm text-gray-500">—</span>
+                        <span className="text-sm text-slate-500">—</span>
                       )}
                     </td>
                   </tr>
@@ -66,7 +72,7 @@ export default function BillingPage() {
             </table>
           </div>
         )}
-      </section>
+      </SurfaceCard>
     </div>
   );
 }
