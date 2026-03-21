@@ -11,11 +11,11 @@ jobs:
       fail-fast: false
       matrix:
         service:
-          - { dir: auth-service, port: 4001 }
-          - { dir: appointment-service, port: 4002 }
-          - { dir: doctor-service, port: 4003 }
-          - { dir: lab-service, port: 4004 }
-          - { dir: billing-service, port: 4005 }
+          - { dir: backend/auth-service, port: 4001 }
+          - { dir: backend/appointment-service, port: 4002 }
+          - { dir: backend/doctor-service, port: 4003 }
+          - { dir: backend/lab-service, port: 4004 }
+          - { dir: backend/billing-service, port: 4005 }
 
     steps:
       - uses: actions/checkout@v4

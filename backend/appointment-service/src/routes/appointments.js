@@ -44,6 +44,16 @@ router.post('/doctor/schedule', requireAuth, requireRole('DOCTOR'), async (req, 
 });
 
 /**
+ * GET /doctors
+ * Returns doctor IDs that have a weekly schedule configured.
+ * This keeps the demo simple (no separate "doctor directory" service).
+ */
+router.get('/doctors', requireAuth, async (req, res) => {
+  const doctorIds = await DoctorSchedule.find().distinct('doctorId');
+  return res.json({ doctors: doctorIds });
+});
+
+/**
  * GET /doctors/:doctorId/available-slots?date=YYYY-MM-DD
  * Patients can view available slots based on schedules and existing bookings.
  */

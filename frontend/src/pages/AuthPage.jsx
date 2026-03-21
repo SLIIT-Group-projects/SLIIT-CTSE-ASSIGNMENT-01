@@ -27,6 +27,7 @@ export default function AuthPage({ initialMode }) {
   const [registerPassword, setRegisterPassword] = useState('');
   const [registerError, setRegisterError] = useState('');
   const [registerSuccess, setRegisterSuccess] = useState('');
+  const [registerFieldErrors, setRegisterFieldErrors] = useState({});
 
   const loginImage = useMemo(
     () => <img src={loginIllustration} alt="Hospital login illustration" className="w-full max-w-md mx-auto" />,
@@ -69,12 +70,40 @@ export default function AuthPage({ initialMode }) {
     e.preventDefault();
     setRegisterError('');
     setRegisterSuccess('');
+    setRegisterFieldErrors({});
+
+    const fieldErrors = {};
+    if (!name || name.trim().length < 2) fieldErrors.name = 'Name must be at least 2 characters.';
+    if (!registerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(registerEmail)) {
+      fieldErrors.email = 'Enter a valid email address.';
+    }
+    if (!registerPassword || registerPassword.length < 8) {
+      fieldErrors.password = 'Password must be at least 8 characters.';
+    }
+    if (!roles.includes(role)) fieldErrors.role = 'Invalid role selected.';
+
+    if (Object.keys(fieldErrors).length > 0) {
+      setRegisterFieldErrors(fieldErrors);
+      setRegisterError('Please correct the highlighted fields.');
+      return;
+    }
+
     try {
       await authApi.post('/auth/register', { name, email: registerEmail, password: registerPassword, role });
       setRegisterSuccess('Account created. Please login.');
       window.setTimeout(() => onSwitchToLogin(), 500);
     } catch (err) {
-      setRegisterError(err?.response?.data?.message || 'Registration failed');
+      const apiData = err?.response?.data;
+      if (apiData?.errors?.fieldErrors) {
+        const be = apiData.errors.fieldErrors;
+        setRegisterFieldErrors({
+          ...(be.name?.[0] ? { name: be.name[0] } : {}),
+          ...(be.email?.[0] ? { email: be.email[0] } : {}),
+          ...(be.password?.[0] ? { password: be.password[0] } : {}),
+          ...(be.role?.[0] ? { role: be.role[0] } : {}),
+        });
+      }
+      setRegisterError(apiData?.message || 'Registration failed');
     }
   }
 
@@ -170,6 +199,9 @@ export default function AuthPage({ initialMode }) {
                 onChange={(e) => setName(e.target.value)}
                 required
               />
+              {registerFieldErrors.name ? (
+                <div className="mt-1 text-xs text-red-600">{registerFieldErrors.name}</div>
+              ) : null}
             </div>
 
             <div>
@@ -182,6 +214,9 @@ export default function AuthPage({ initialMode }) {
                 autoComplete="email"
                 required
               />
+              {registerFieldErrors.email ? (
+                <div className="mt-1 text-xs text-red-600">{registerFieldErrors.email}</div>
+              ) : null}
             </div>
 
             <div>
@@ -198,6 +233,9 @@ export default function AuthPage({ initialMode }) {
                   </option>
                 ))}
               </select>
+              {registerFieldErrors.role ? (
+                <div className="mt-1 text-xs text-red-600">{registerFieldErrors.role}</div>
+              ) : null}
             </div>
 
             <div>
@@ -210,6 +248,11 @@ export default function AuthPage({ initialMode }) {
                 autoComplete="new-password"
                 required
               />
+              {registerFieldErrors.password ? (
+                <div className="mt-1 text-xs text-red-600">{registerFieldErrors.password}</div>
+              ) : (
+                <div className="mt-1 text-xs text-slate-500">Use at least 8 characters.</div>
+              )}
             </div>
 
             <button

@@ -1,54 +1,54 @@
 services:
   auth-service:
-    build: ./auth-service
+    build: ./backend/auth-service
     ports:
       - "4001:4001"
     env_file:
-      - ./auth-service/.env
+      - ./backend/auth-service/.env
     depends_on:
       - mongo-auth
     networks:
       - hm-net
 
   appointment-service:
-    build: ./appointment-service
+    build: ./backend/appointment-service
     ports:
       - "4002:4002"
     env_file:
-      - ./appointment-service/.env
+      - ./backend/appointment-service/.env
     depends_on:
       - mongo-appointment
     networks:
       - hm-net
 
   doctor-service:
-    build: ./doctor-service
+    build: ./backend/doctor-service
     ports:
       - "4003:4003"
     env_file:
-      - ./doctor-service/.env
+      - ./backend/doctor-service/.env
     depends_on:
       - mongo-doctor
     networks:
       - hm-net
 
   lab-service:
-    build: ./lab-service
+    build: ./backend/lab-service
     ports:
       - "4004:4004"
     env_file:
-      - ./lab-service/.env
+      - ./backend/lab-service/.env
     depends_on:
       - mongo-lab
     networks:
       - hm-net
 
   billing-service:
-    build: ./billing-service
+    build: ./backend/billing-service
     ports:
       - "4005:4005"
     env_file:
-      - ./billing-service/.env
+      - ./backend/billing-service/.env
     depends_on:
       - mongo-billing
     networks:

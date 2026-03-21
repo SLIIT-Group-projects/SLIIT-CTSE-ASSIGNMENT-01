@@ -3,11 +3,11 @@
 Microservices hospital workflow using: Node.js + Express + MongoDB + React + Tailwind.
 
 ## Microservices (each with its own MongoDB)
-- `auth-service/` (JWT + roles)
-- `appointment-service/` (doctor schedules + appointment booking)
-- `doctor-service/` (clinical notes/prescriptions + lab test requests)
-- `lab-service/` (lab requests + report upload after payment)
-- `billing-service/` (bill creation + slip upload + ADMIN payment verification)
+- `backend/auth-service/` (JWT + roles)
+- `backend/appointment-service/` (doctor schedules + appointment booking)
+- `backend/doctor-service/` (clinical notes/prescriptions + lab test requests)
+- `backend/lab-service/` (lab requests + report upload after payment)
+- `backend/billing-service/` (bill creation + slip upload + ADMIN payment verification)
 
 Frontend:
 - `frontend/` (single shared React app)
@@ -22,7 +22,7 @@ Frontend:
 
 ## Required environment files
 For each backend service directory, copy:
-- `<service>/.env.example` -> `<service>/.env`
+- `backend/<service>/.env.example` -> `backend/<service>/.env`
 
 For the frontend:
 - `frontend/.env.example` -> `frontend/.env`

@@ -132,6 +132,7 @@ router.post(
     });
 
     if (!bill) return res.status(404).json({ message: 'Bill not found' });
+    if (bill.status !== 'PENDING_PAYMENT') return res.status(409).json({ message: `Cannot upload slip when bill is ${bill.status}` });
 
     bill.paymentMethod = 'BANK_TRANSFER';
     bill.paymentSlipUrl = slipUrl(slip.filename);
@@ -200,6 +201,7 @@ router.post(
     });
 
     if (!bill) return res.status(404).json({ message: 'Bill not found' });
+    if (bill.status !== 'PENDING_PAYMENT') return res.status(409).json({ message: `Cannot upload slip when bill is ${bill.status}` });
 
     bill.paymentMethod = 'BANK_TRANSFER';
     bill.paymentSlipUrl = slipUrl(slip.filename);
