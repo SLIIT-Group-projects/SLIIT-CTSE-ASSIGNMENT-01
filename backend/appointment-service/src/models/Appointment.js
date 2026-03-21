@@ -13,6 +13,11 @@ const appointmentSchema = new mongoose.Schema(
       enum: ['PENDING_PAYMENT', 'CONFIRMED', 'COMPLETED'],
       index: true,
     },
+    patientNumber: { type: Number, default: null },
+    remainingPatientCount: { type: Number, default: null },
+    estimatedTimeMinutes: { type: Number, default: null }, // per-patient screening duration
+    estimatedWaitMinutes: { type: Number, default: null }, // queue wait before this patient starts
+    estimatedAppointmentTime: { type: String, default: null }, // HH:MM
     billingBillId: { type: String, default: null },
     previousReports: {
       type: [

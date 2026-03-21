@@ -10,6 +10,8 @@ export default function AppointmentsPage() {
   const { notify } = useToast();
   const [doctors, setDoctors] = useState([]);
   const [doctorProfiles, setDoctorProfiles] = useState([]);
+  const [doctorNameQuery, setDoctorNameQuery] = useState('');
+  const [specialityFilter, setSpecialityFilter] = useState('');
 
   const [appointments, setAppointments] = useState([]);
   const [prescriptions, setPrescriptions] = useState([]);
@@ -100,6 +102,22 @@ export default function AppointmentsPage() {
     [doctors, doctorProfileMap]
   );
 
+  const specialityOptions = useMemo(() => {
+    const values = doctorCards
+      .map((d) => d.speciality)
+      .filter((s) => s && s !== 'Not specified');
+    return [...new Set(values)].sort((a, b) => a.localeCompare(b));
+  }, [doctorCards]);
+
+  const filteredDoctorCards = useMemo(() => {
+    const q = doctorNameQuery.trim().toLowerCase();
+    return doctorCards.filter((d) => {
+      const byName = !q || d.name.toLowerCase().includes(q);
+      const bySpeciality = !specialityFilter || d.speciality === specialityFilter;
+      return byName && bySpeciality;
+    });
+  }, [doctorCards, doctorNameQuery, specialityFilter]);
+
   function openDoctorSessions(id) {
     navigate(`/appointments/doctor/${id}`);
   }
@@ -114,12 +132,38 @@ export default function AppointmentsPage() {
       <SurfaceCard>
         <h2 className="text-xl font-semibold text-slate-900">Choose Your Doctor</h2>
         <p className="mt-1 text-sm text-slate-500">Click a doctor profile to open upcoming sessions and confirm booking.</p>
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <label className="text-sm font-medium text-slate-700">
+            Search by Doctor Name
+            <input
+              className="input-modern"
+              value={doctorNameQuery}
+              onChange={(e) => setDoctorNameQuery(e.target.value)}
+              placeholder="Type doctor name..."
+            />
+          </label>
+          <label className="text-sm font-medium text-slate-700">
+            Filter by Speciality
+            <select
+              className="input-modern"
+              value={specialityFilter}
+              onChange={(e) => setSpecialityFilter(e.target.value)}
+            >
+              <option value="">All specialities</option>
+              {specialityOptions.map((sp) => (
+                <option key={sp} value={sp}>
+                  {sp}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <div className="mt-4">
-          {doctorCards.length === 0 ? (
+          {filteredDoctorCards.length === 0 ? (
             <EmptyState title="No doctors found" subtitle="No available doctors were found yet." />
           ) : (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {doctorCards.map((d) => (
+              {filteredDoctorCards.map((d) => (
                 <button
                   key={d.doctorId}
                   type="button"

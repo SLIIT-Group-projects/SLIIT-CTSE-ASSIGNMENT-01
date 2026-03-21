@@ -7,13 +7,23 @@ const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export default function DoctorPage() {
   const { notify } = useToast();
-  const [schedule, setSchedule] = useState(() => Array.from({ length: 7 }, () => ({ start: '', end: '' })));
+  const [schedule, setSchedule] = useState(() =>
+    Array.from({ length: 7 }, () => ({ start: '', end: '', plannedPatientCount: '' }))
+  );
   const [saving, setSaving] = useState(false);
 
   async function saveSchedule() {
     const slots = [];
     schedule.forEach((d, i) => {
-      if (d.start && d.end) slots.push({ dayOfWeek: i, start: d.start, end: d.end });
+      if (d.start && d.end) {
+        const planned = Number(d.plannedPatientCount);
+        slots.push({
+          dayOfWeek: i,
+          start: d.start,
+          end: d.end,
+          ...(Number.isInteger(planned) && planned > 0 ? { plannedPatientCount: planned } : {}),
+        });
+      }
     });
     if (slots.length === 0) {
       notify('Add at least one availability range.', 'error');
@@ -67,6 +77,20 @@ export default function DoctorPage() {
                       const v = e.target.value;
                       setSchedule((prev) => prev.map((x, i) => (i === dayIndex ? { ...x, end: v } : x)));
                     }}
+                  />
+                </label>
+                <label className="col-span-2 text-xs text-slate-600">
+                  Planned Patients for Session
+                  <input
+                    className="input-modern py-2"
+                    type="number"
+                    min="1"
+                    value={schedule[dayIndex].plannedPatientCount}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setSchedule((prev) => prev.map((x, i) => (i === dayIndex ? { ...x, plannedPatientCount: v } : x)));
+                    }}
+                    placeholder="Optional (auto-calculated from duration if empty)"
                   />
                 </label>
               </div>

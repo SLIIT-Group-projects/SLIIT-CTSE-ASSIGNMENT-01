@@ -11,6 +11,14 @@ function isoDatePlus(days) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
+function hhmmTo12h(hhmm) {
+  if (!hhmm || !/^\d{2}:\d{2}$/.test(hhmm)) return '';
+  const [h, m] = hhmm.split(':').map(Number);
+  const period = h >= 12 ? 'PM' : 'AM';
+  const hr = h % 12 === 0 ? 12 : h % 12;
+  return `${hr}:${String(m).padStart(2, '0')} ${period}`;
+}
+
 export default function AppointmentDoctorSessionsPage() {
   const { doctorId } = useParams();
   const navigate = useNavigate();
@@ -48,6 +56,41 @@ export default function AppointmentDoctorSessionsPage() {
     setSessions(results.filter((day) => day.slots.length > 0));
   }
 
+  const groupedSessions = useMemo(() => {
+    return sessions.map((day) => {
+      const groups = [];
+      for (const slot of day.slots) {
+        const last = groups[groups.length - 1];
+        if (!last) {
+          groups.push({
+            consultingStart: slot.start,
+            consultingEnd: slot.end,
+            firstAvailableSlotStart: slot.start,
+            firstAvailableSlotEnd: slot.end,
+            slots: [slot],
+          });
+          continue;
+        }
+        if (last.consultingEnd === slot.start) {
+          last.consultingEnd = slot.end;
+          last.slots.push(slot);
+        } else {
+          groups.push({
+            consultingStart: slot.start,
+            consultingEnd: slot.end,
+            firstAvailableSlotStart: slot.start,
+            firstAvailableSlotEnd: slot.end,
+            slots: [slot],
+          });
+        }
+      }
+      return {
+        date: day.date,
+        sessions: groups,
+      };
+    });
+  }, [sessions]);
+
   useEffect(() => {
     let cancelled = false;
     async function run() {
@@ -62,11 +105,17 @@ export default function AppointmentDoctorSessionsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doctorId]);
 
-  async function chooseSlot(date, slot) {
-    setSelected({ date, slotStart: slot.start, slotEnd: slot.end });
+  async function chooseSession(date, session) {
+    setSelected({
+      date,
+      slotStart: session.firstAvailableSlotStart,
+      slotEnd: session.firstAvailableSlotEnd,
+      consultingStart: session.consultingStart,
+      consultingEnd: session.consultingEnd,
+    });
     try {
       const resp = await appointmentApi.get('/appointments/quote', {
-        params: { doctorId, date, slotStart: slot.start },
+        params: { doctorId, date, slotStart: session.firstAvailableSlotStart },
       });
       setQuote(resp.data?.quote || null);
     } catch (_e) {
@@ -129,27 +178,30 @@ export default function AppointmentDoctorSessionsPage() {
       <SurfaceCard>
         <h2 className="text-xl font-semibold text-slate-900">Upcoming Sessions (Next 7 Days)</h2>
         <div className="mt-4 space-y-4">
-          {sessions.length === 0 ? (
+          {groupedSessions.length === 0 ? (
             <EmptyState title="No upcoming sessions" subtitle="This doctor has no open slots in the next 7 days." />
           ) : (
-            sessions.map((day) => (
+            groupedSessions.map((day) => (
               <div key={day.date} className="rounded-2xl border border-slate-200 bg-white p-4">
                 <div className="mb-2 text-sm font-semibold text-slate-700">{day.date}</div>
                 <div className="flex flex-wrap gap-2">
-                  {day.slots.map((s) => {
-                    const active = selected?.date === day.date && selected?.slotStart === s.start;
+                  {day.sessions.map((s, idx) => {
+                    const active =
+                      selected?.date === day.date &&
+                      selected?.consultingStart === s.consultingStart &&
+                      selected?.consultingEnd === s.consultingEnd;
                     return (
                       <button
-                        key={`${day.date}-${s.start}`}
+                        key={`${day.date}-${s.consultingStart}-${idx}`}
                         type="button"
-                        onClick={() => chooseSlot(day.date, s)}
+                        onClick={() => chooseSession(day.date, s)}
                         className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
                           active
                             ? 'border-[#14967F]/40 bg-[#14967F]/10 text-[#14967F]'
                             : 'border-slate-200 bg-white text-slate-700 hover:border-blue-300 hover:text-blue-700'
                         }`}
                       >
-                        {s.start} - {s.end}
+                        {s.consultingStart} - {s.consultingEnd}
                       </button>
                     );
                   })}
@@ -170,19 +222,40 @@ export default function AppointmentDoctorSessionsPage() {
         ) : (
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
             <div className="rounded-xl bg-slate-50 p-4">
-              <p className="text-sm text-slate-500">Selected Slot</p>
+              <p className="text-sm text-slate-500">Selected Consulting Session</p>
               <p className="mt-1 font-semibold text-slate-900">
-                {selected.date} | {selected.slotStart} - {selected.slotEnd}
+                {selected.date} | {selected.consultingStart || selected.slotStart} - {selected.consultingEnd || selected.slotEnd}
               </p>
             </div>
             <div className="rounded-xl bg-slate-50 p-4">
               <p className="text-sm text-slate-500">Patient Number</p>
               <p className="mt-1 text-2xl font-bold text-[#14967F]">#{quote.patientNumber}</p>
             </div>
+            <div className="rounded-xl bg-slate-50 p-4">
+              <p className="text-sm text-slate-500">Remaining Patient Count</p>
+              <p className="mt-1 text-2xl font-bold text-slate-900">{quote.remainingPatientCount}</p>
+            </div>
             <div className="rounded-xl bg-slate-50 p-4 md:col-span-2">
               <p className="text-sm text-slate-500">Appointment Charge</p>
               <p className="mt-1 text-xl font-semibold text-slate-900">
                 {quote.currency} {quote.amount}
+              </p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-4 md:col-span-2">
+              <p className="text-sm text-slate-500">Estimated Screening Duration</p>
+              <p className="mt-1 text-xl font-semibold text-slate-900">
+                {quote.estimatedTimeMinutes} minutes
+              </p>
+              <p className="mt-1 text-sm text-slate-600">
+                Estimated wait before consultation: {quote.estimatedWaitMinutes || 0} minutes
+              </p>
+              {quote.estimatedAppointmentTime ? (
+                <p className="mt-1 text-sm font-semibold text-[#14967F]">
+                  Estimated Appointment Clock Time: {hhmmTo12h(quote.estimatedAppointmentTime)}
+                </p>
+              ) : null}
+              <p className="mt-1 text-xs text-slate-400">
+                Queue logic: patient #1 starts at session start; next patients follow screening duration order.
               </p>
             </div>
             <div className="md:col-span-2">
