@@ -7,7 +7,7 @@ const swaggerDefinition = {
     title: 'Appointment Service API',
     version: '1.0.0',
   },
-  servers: [{ url: process.env.PUBLIC_API_BASE_URL || 'http://localhost:4002' }],
+  servers: [{ url: process.env.PUBLIC_API_BASE_URL || 'https://appointment-service-t2lw.onrender.com' }],
   components: {
     securitySchemes: {
       bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },

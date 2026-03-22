@@ -16,9 +16,9 @@ module.exports = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   internalServiceToken: required('INTERNAL_SERVICE_TOKEN'),
   billingServiceBaseUrl: required('BILLING_SERVICE_BASE_URL'),
-  doctorServiceBaseUrl: process.env.DOCTOR_SERVICE_BASE_URL || 'http://doctor-service:4003',
+  doctorServiceBaseUrl: process.env.DOCTOR_SERVICE_BASE_URL || 'https://doctor-service-7w9h.onrender.com',
   // Browser must reach this host:port for stored /uploads/... links (default = direct appointment port).
-  publicServiceBaseUrl: process.env.PUBLIC_SERVICE_BASE_URL || 'http://localhost:4002',
+  publicServiceBaseUrl: process.env.PUBLIC_SERVICE_BASE_URL || 'https://appointment-service-t2lw.onrender.com',
   slotMinutes: Number(process.env.SLOT_MINUTES || 30),
   defaultAppointmentAmount: Number(process.env.DEFAULT_APPOINTMENT_AMOUNT || 500),
 };

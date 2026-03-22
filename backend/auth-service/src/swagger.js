@@ -7,7 +7,7 @@ const swaggerDefinition = {
     title: 'Auth Service API',
     version: '1.0.0',
   },
-  servers: [{ url: process.env.PUBLIC_API_BASE_URL || 'http://localhost:4001' }],
+  servers: [{ url: process.env.PUBLIC_API_BASE_URL || 'https://auth-service-0vqx.onrender.com' }],
   components: {
     securitySchemes: {
       bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
