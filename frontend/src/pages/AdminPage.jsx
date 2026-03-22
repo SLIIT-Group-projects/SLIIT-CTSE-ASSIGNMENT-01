@@ -3,7 +3,7 @@ import StatusBadge from '../components/StatusBadge';
 import { appointmentApi, authApi, billingApi, doctorApi, labApi } from '../api/client';
 import Modal from '../components/Modal';
 import { useToast } from '../components/ToastProvider';
-import { EmptyState, LoadingState, PageHero, PrimaryButton, SoftButton, SurfaceCard } from '../components/ui';
+import { EmptyState, LoadingState, PageHero, SurfaceCard } from '../components/ui';
 import { resolveBillingAssetUrl } from '../utils/billingAssets';
 
 function isPdfSlip(url) {
