@@ -9,6 +9,7 @@ const { z } = require('zod');
 const LabRequest = require('../models/LabRequest');
 const { requireAuth, requireRole, requireInternal } = require('../middleware/auth');
 const config = require('../config');
+const { sendLabReportReadyEmail } = require('../lib/mail');
 
 const router = express.Router();
 
@@ -48,23 +49,82 @@ function handleMulterUpload(mw) {
   };
 }
 
-function buildRequestsQuery(query) {
+function buildRequestsQuery(query, patientIdsFromNameSearch = []) {
   const filter = {};
-  if (query.paymentStatus === 'PAID' || query.paymentStatus === 'PENDING_PAYMENT') {
-    filter.paymentStatus = query.paymentStatus;
+
+  if (['QUEUED', 'IN_PROGRESS', 'COMPLETED'].includes(query.labStatus)) {
+    filter.labStatus = query.labStatus;
   }
-  if (query.hasReport === 'yes') filter.reportUrl = { $ne: null };
-  if (query.hasReport === 'no') filter.reportUrl = null;
+
+  if (query.priority === 'URGENT' || query.priority === 'NORMAL') {
+    filter.priority = query.priority;
+  }
 
   const search = typeof query.search === 'string' ? query.search.trim() : '';
   if (search) {
-    const or = [{ testName: new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }];
+    const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const or = [{ testName: new RegExp(escaped, 'i') }];
     if (mongoose.Types.ObjectId.isValid(search) && String(search).length === 24) {
       or.push({ patientId: search });
+    }
+    const validNameIds = patientIdsFromNameSearch.filter((id) => mongoose.Types.ObjectId.isValid(id));
+    if (validNameIds.length) {
+      or.push({ patientId: { $in: validNameIds } });
     }
     filter.$or = or;
   }
   return filter;
+}
+
+async function fetchPatientIdsMatchingName(search) {
+  const q = String(search || '').trim();
+  if (q.length < 2) return [];
+  try {
+    const base = String(config.authServiceBaseUrl || '').replace(/\/$/, '');
+    const resp = await axios.get(`${base}/auth/internal/patients/search`, {
+      params: { q },
+      headers: { 'x-internal-token': config.internalServiceToken },
+      timeout: 10000,
+    });
+    return Array.isArray(resp.data.ids) ? resp.data.ids : [];
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('lab-service: auth patient name search failed', err.response?.data || err.message);
+    return [];
+  }
+}
+
+/**
+ * Resolve patient name + email via auth-service (internal bulk API).
+ */
+async function fetchPatientUsersByIds(ids) {
+  const unique = [...new Set(ids.map((id) => String(id)).filter(Boolean))];
+  if (unique.length === 0) return new Map();
+  try {
+    const base = String(config.authServiceBaseUrl || '').replace(/\/$/, '');
+    const resp = await axios.post(
+      `${base}/auth/users/bulk`,
+      { ids: unique },
+      {
+        headers: {
+          'x-internal-token': config.internalServiceToken,
+          'Content-Type': 'application/json',
+        },
+        timeout: 10000,
+      }
+    );
+    const map = new Map();
+    for (const u of resp.data.users || []) {
+      if (u && u.id) {
+        map.set(String(u.id), { name: u.name || '', email: u.email || '' });
+      }
+    }
+    return map;
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('lab-service: auth users/bulk failed', err.response?.data || err.message);
+    return new Map();
+  }
 }
 
 /**
@@ -144,14 +204,63 @@ router.put('/lab/confirm-payment/:id', requireInternal, async (req, res) => {
  *     security: [ { bearerAuth: [] } ]
  */
 router.get('/lab/requests', requireAuth, requireRole('LAB_TECH'), async (req, res) => {
-  const filter = buildRequestsQuery(req.query);
-  const requests = await LabRequest.find(filter).sort({ priority: -1, createdAt: -1 }).lean();
-  const normalized = requests.map((r) => ({
-    ...r,
-    labStatus: r.labStatus || 'QUEUED',
-    priority: r.priority || 'NORMAL',
-  }));
+  const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+  let namePatientIds = [];
+  if (search.length >= 2) {
+    namePatientIds = await fetchPatientIdsMatchingName(search);
+  }
+  const filter = buildRequestsQuery(req.query, namePatientIds);
+  const sortDir = req.query.sort === 'oldest' ? 1 : -1;
+  const requests = await LabRequest.find(filter).sort({ createdAt: sortDir }).lean();
+  const userMap = await fetchPatientUsersByIds(requests.map((r) => r.patientId));
+  const normalized = requests.map((r) => {
+    const pid = String(r.patientId);
+    const u = userMap.get(pid);
+    return {
+      ...r,
+      labStatus: r.labStatus || 'QUEUED',
+      priority: r.priority || 'NORMAL',
+      patientName: u?.name || null,
+      patientEmail: u?.email || null,
+    };
+  });
   return res.json({ labRequests: normalized });
+});
+
+/**
+ * GET /lab/dashboard/summary
+ * LAB_TECH aggregate counts (not affected by list filters).
+ */
+router.get('/lab/dashboard/summary', requireAuth, requireRole('LAB_TECH'), async (req, res) => {
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const noReport = { $or: [{ reportUrl: null }, { reportUrl: '' }, { reportUrl: { $exists: false } }] };
+  const hasReport = { reportUrl: { $exists: true, $nin: [null, ''] } };
+
+  const [openWorkQueue, completedThisWeek, urgentOpen, pendingPayment] = await Promise.all([
+    LabRequest.countDocuments(noReport),
+    LabRequest.countDocuments({
+      ...hasReport,
+      uploadedAt: { $gte: weekAgo },
+    }),
+    LabRequest.countDocuments({ ...noReport, priority: 'URGENT' }),
+    LabRequest.countDocuments({ paymentStatus: 'PENDING_PAYMENT' }),
+  ]);
+
+  let oldestOpenHours = null;
+  const oldest = await LabRequest.findOne(noReport).sort({ createdAt: 1 }).select('createdAt').lean();
+  if (oldest?.createdAt) {
+    oldestOpenHours = Math.floor((now.getTime() - new Date(oldest.createdAt).getTime()) / (1000 * 60 * 60));
+  }
+
+  return res.json({
+    openWorkQueue,
+    completedThisWeek,
+    urgentOpen,
+    pendingPayment,
+    oldestOpenHours,
+  });
 });
 
 /**
@@ -213,6 +322,43 @@ router.patch('/lab/requests/:id', requireAuth, requireRole('LAB_TECH'), async (r
 });
 
 /**
+ * POST /lab/requests/:id/notify-email
+ * LAB_TECH emails the patient a link to the completed report (uses auth user email).
+ */
+router.post('/lab/requests/:id/notify-email', requireAuth, requireRole('LAB_TECH'), async (req, res) => {
+  const labRequest = await LabRequest.findById(req.params.id);
+  if (!labRequest) return res.status(404).json({ message: 'Lab request not found' });
+  if (!labRequest.reportUrl) return res.status(400).json({ message: 'No report uploaded yet' });
+  if ((labRequest.labStatus || 'QUEUED') !== 'COMPLETED') {
+    return res.status(400).json({ message: 'Report must be completed before notifying' });
+  }
+
+  const userMap = await fetchPatientUsersByIds([labRequest.patientId]);
+  const patient = userMap.get(String(labRequest.patientId));
+  if (!patient?.email) return res.status(400).json({ message: 'Could not resolve patient email' });
+
+  const viewUrl = /^https?:\/\//i.test(String(labRequest.reportUrl))
+    ? labRequest.reportUrl
+    : `${String(config.publicServiceBaseUrl || '').replace(/\/$/, '')}${labRequest.reportUrl}`;
+
+  const mailResult = await sendLabReportReadyEmail({
+    to: patient.email,
+    patientName: patient.name,
+    testName: labRequest.testName,
+    viewUrl,
+  });
+
+  if (!mailResult.ok) {
+    return res.status(502).json({ message: mailResult.error || 'Email failed' });
+  }
+
+  labRequest.emailNotifiedAt = new Date();
+  await labRequest.save();
+
+  return res.json({ ok: true, labRequest, mail: mailResult });
+});
+
+/**
  * @openapi
  * /lab/requests/{id}/report:
  *   post:
@@ -258,8 +404,6 @@ router.post(
     labRequest.labStatus = 'COMPLETED';
     labRequest.uploadedAt = new Date();
     labRequest.uploadedBy = req.user.userId;
-    // Stub: in production, enqueue email/SMS/push to patient
-    labRequest.patientNotified = true;
 
     await labRequest.save();
 

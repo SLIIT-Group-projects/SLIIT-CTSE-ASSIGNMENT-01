@@ -46,8 +46,10 @@ const labRequestSchema = new mongoose.Schema(
     uploadedBy: { type: mongoose.Schema.Types.ObjectId, default: null },
     replacedAt: { type: Date, default: null },
 
-    /** Set true when report is finalized; production would trigger email/push here */
+    /** Legacy flag; prefer emailNotifiedAt for email notifications */
     patientNotified: { type: Boolean, default: false },
+    /** When patient was emailed about this completed report (lab tech action) */
+    emailNotifiedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

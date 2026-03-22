@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { labApi } from '../api/client';
 import StatusBadge from '../components/StatusBadge';
 import { useToast } from '../components/ToastProvider';
-import { EmptyState, LoadingState, PageHero, SurfaceCard } from '../components/ui';
+import { EmptyState, LoadingState, PageHero, StatCard, SurfaceCard } from '../components/ui';
 import { resolveLabFileUrl } from '../utils/labFileUrl';
 
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -38,10 +38,12 @@ function validateLabFile(file) {
   return null;
 }
 
-function buildRequestsQuery({ search, paymentStatus }) {
+function buildRequestsQuery({ search, labStatus, priority, sort }) {
   const q = new URLSearchParams();
   if (search.trim()) q.set('search', search.trim());
-  if (paymentStatus && paymentStatus !== 'all') q.set('paymentStatus', paymentStatus);
+  if (labStatus && labStatus !== 'all') q.set('labStatus', labStatus);
+  if (priority && priority !== 'all') q.set('priority', priority);
+  if (sort && sort !== 'newest') q.set('sort', sort);
   const s = q.toString();
   return s ? `?${s}` : '';
 }
@@ -53,11 +55,6 @@ function partitionLabQueues(requests) {
     if (r.reportUrl) completed.push(r);
     else active.push(r);
   }
-  completed.sort((a, b) => {
-    const ta = new Date(a.uploadedAt || a.createdAt).getTime();
-    const tb = new Date(b.uploadedAt || b.createdAt).getTime();
-    return tb - ta;
-  });
   return { activeQueue: active, completedQueue: completed };
 }
 
@@ -71,9 +68,14 @@ export default function LabPage() {
   const [labRequests, setLabRequests] = useState([]);
   const [labReports, setLabReports] = useState([]);
   const [loading, setLoading] = useState(false);
+  /** Global lab stats (GET /lab/dashboard/summary) — not tied to list filters */
+  const [labSummary, setLabSummary] = useState(null);
 
   const [search, setSearch] = useState('');
-  const [paymentStatus, setPaymentStatus] = useState('all');
+  const [labStatusFilter, setLabStatusFilter] = useState('all');
+  const [priorityFilter, setPriorityFilter] = useState('all');
+  /** newest first (default) or oldest first */
+  const [sortOrder, setSortOrder] = useState('newest');
 
   const [remarksById, setRemarksById] = useState({});
   const [dragOverId, setDragOverId] = useState(null);
@@ -81,8 +83,18 @@ export default function LabPage() {
   const [fileErrorById, setFileErrorById] = useState({});
   /** Completed page: which rows show full details (key = request id string) */
   const [expandedCompleted, setExpandedCompleted] = useState({});
+  const [notifyBusyId, setNotifyBusyId] = useState(null);
 
-  const queryString = useMemo(() => buildRequestsQuery({ search, paymentStatus }), [search, paymentStatus]);
+  const queryString = useMemo(
+    () => buildRequestsQuery({ search, labStatus: labStatusFilter, priority: priorityFilter, sort: sortOrder }),
+    [search, labStatusFilter, priorityFilter, sortOrder]
+  );
+
+  useEffect(() => {
+    if (role !== 'LAB_TECH') return;
+    if (pathname === '/lab/completed') setLabStatusFilter('COMPLETED');
+    else if (pathname === '/lab') setLabStatusFilter('all');
+  }, [pathname, role]);
 
   const { activeQueue, completedQueue } = useMemo(() => partitionLabQueues(labRequests), [labRequests]);
 
@@ -90,8 +102,12 @@ export default function LabPage() {
     setLoading(true);
     try {
       if (role === 'LAB_TECH') {
-        const resp = await labApi.get(`/lab/requests${queryString}`);
-        setLabRequests(resp.data.labRequests || []);
+        const [reqResp, sumResp] = await Promise.all([
+          labApi.get(`/lab/requests${queryString}`),
+          labApi.get('/lab/dashboard/summary'),
+        ]);
+        setLabRequests(reqResp.data.labRequests || []);
+        setLabSummary(sumResp.data || null);
       } else {
         const resp = await labApi.get('/lab/reports');
         setLabReports(resp.data.labReports || []);
@@ -124,6 +140,24 @@ export default function LabPage() {
     } catch (e) {
       const msg = e.response?.data?.message || 'Could not update priority.';
       notify(msg, 'error');
+    }
+  }
+
+  async function notifyPatientByEmail(id) {
+    setNotifyBusyId(id);
+    try {
+      const resp = await labApi.post(`/lab/requests/${id}/notify-email`);
+      await refresh();
+      const devMode = resp.data?.mail?.devMode;
+      notify(
+        devMode ? 'Notification simulated (check server logs). Add SMTP_* in lab-service .env to send real email.' : 'Email sent to the patient.',
+        'success'
+      );
+    } catch (e) {
+      const msg = e.response?.data?.message || 'Could not send email.';
+      notify(msg, 'error');
+    } finally {
+      setNotifyBusyId(null);
     }
   }
 
@@ -203,8 +237,21 @@ export default function LabPage() {
               Appointment: <span className="font-mono text-xs">{String(r.appointmentId)}</span>
             </div>
             <div className="mt-1 text-sm text-slate-600">
-              Patient: <span className="font-mono text-xs">{String(r.patientId)}</span>
+              Patient:{' '}
+              {r.patientName ? (
+                <>
+                  <span className="font-medium text-slate-800">{r.patientName}</span>
+                  <span className="font-mono text-xs text-slate-500"> · {String(r.patientId)}</span>
+                </>
+              ) : (
+                <span className="font-mono text-xs">{String(r.patientId)}</span>
+              )}
             </div>
+            {r.patientEmail ? (
+              <div className="mt-1 text-xs text-slate-500">
+                Email: <span className="text-slate-700">{r.patientEmail}</span>
+              </div>
+            ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={r.paymentStatus} />
@@ -226,7 +273,7 @@ export default function LabPage() {
               </div>
             )}
             {r.replacedAt && <div>Last replaced: {formatDate(r.replacedAt)}</div>}
-            {r.patientNotified && <div className="text-emerald-700">Patient notify flag set (stub — wire email in production)</div>}
+            {r.emailNotifiedAt && <div className="text-emerald-700">Patient emailed: {formatDate(r.emailNotifiedAt)}</div>}
           </div>
         )}
 
@@ -259,9 +306,24 @@ export default function LabPage() {
         <div className="mt-4">
           {hasFile ? (
             <div className="space-y-2">
-              <a className="text-sm font-semibold text-blue-700 underline" href={resolveLabFileUrl(r.reportUrl)} target="_blank" rel="noreferrer">
-                View uploaded report
-              </a>
+              <div className="flex flex-wrap items-center gap-3">
+                <a className="text-sm font-semibold text-blue-700 underline" href={resolveLabFileUrl(r.reportUrl)} target="_blank" rel="noreferrer">
+                  View uploaded report
+                </a>
+                {labStatus === 'COMPLETED' && r.patientEmail ? (
+                  <button
+                    type="button"
+                    disabled={notifyBusyId === id || Boolean(r.emailNotifiedAt)}
+                    title={r.emailNotifiedAt ? 'Already notified' : 'Send report link by email'}
+                    onClick={() => notifyPatientByEmail(id)}
+                    className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-900 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {notifyBusyId === id ? 'Sending…' : r.emailNotifiedAt ? 'Emailed patient' : 'Email patient'}
+                  </button>
+                ) : labStatus === 'COMPLETED' && !r.patientEmail ? (
+                  <span className="text-xs text-amber-700">Patient email unavailable (auth lookup)</span>
+                ) : null}
+              </div>
               {r.reportRemarks ? (
                 <div className="text-sm text-slate-600">
                   Remarks: <span className="text-slate-800">{r.reportRemarks}</span>
@@ -397,7 +459,15 @@ export default function LabPage() {
             </div>
             <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
               <span>
-                Patient <span className="font-mono text-slate-800">{shortId(r.patientId)}</span>
+                Patient{' '}
+                {r.patientName ? (
+                  <>
+                    <span className="font-semibold text-slate-900">{r.patientName}</span>
+                    <span className="font-mono text-slate-500"> · {shortId(r.patientId)}</span>
+                  </>
+                ) : (
+                  <span className="font-mono text-slate-800">{shortId(r.patientId)}</span>
+                )}
               </span>
               <span>Uploaded {formatDate(r.uploadedAt)}</span>
             </div>
@@ -407,15 +477,35 @@ export default function LabPage() {
               </p>
             ) : null}
           </div>
-          <a
-            className="shrink-0 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
-            href={resolveLabFileUrl(r.reportUrl)}
-            target="_blank"
-            rel="noreferrer"
-            onClick={(e) => e.stopPropagation()}
-          >
-            View report
-          </a>
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <a
+              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700"
+              href={resolveLabFileUrl(r.reportUrl)}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(e) => e.stopPropagation()}
+            >
+              View report
+            </a>
+            {r.patientEmail ? (
+              <button
+                type="button"
+                disabled={notifyBusyId === id || Boolean(r.emailNotifiedAt)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  notifyPatientByEmail(id);
+                }}
+                className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-900 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {notifyBusyId === id ? 'Sending…' : r.emailNotifiedAt ? 'Emailed' : 'Email patient'}
+              </button>
+            ) : (
+              <span className="max-w-[8rem] text-right text-[10px] text-amber-700">No patient email</span>
+            )}
+            {r.emailNotifiedAt ? (
+              <span className="text-[10px] text-slate-500">{formatDate(r.emailNotifiedAt)}</span>
+            ) : null}
+          </div>
         </div>
 
         {expanded ? (
@@ -432,8 +522,8 @@ export default function LabPage() {
       <SurfaceCard>
         <h2 className="text-xl font-semibold text-slate-900">Filters</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Payment must be <strong>PAID</strong> before processing. Upload requires <strong>In progress</strong> first. Use the sidebar to switch
-          between the work queue and completed reports.
+          Filter by <strong>lab workflow status</strong> and <strong>priority</strong>. Sort by request date. Search matches test name, patient ID, or
+          patient name (2+ letters for name lookup).
         </p>
 
         <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
@@ -443,24 +533,101 @@ export default function LabPage() {
               type="search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Test name or patient ID"
+              placeholder="Test name, patient name, or patient ID"
               className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 min-w-[200px]"
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium text-slate-700">Payment</span>
+            <span className="font-medium text-slate-700">Lab status</span>
             <select
-              value={paymentStatus}
-              onChange={(e) => setPaymentStatus(e.target.value)}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400"
+              value={labStatusFilter}
+              onChange={(e) => setLabStatusFilter(e.target.value)}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 min-w-[180px]"
             >
               <option value="all">All</option>
-              <option value="PAID">Paid only</option>
-              <option value="PENDING_PAYMENT">Pending payment</option>
+              <option value="QUEUED">Queued</option>
+              <option value="IN_PROGRESS">In progress</option>
+              <option value="COMPLETED">Completed</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-slate-700">Priority</span>
+            <select
+              value={priorityFilter}
+              onChange={(e) => setPriorityFilter(e.target.value)}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 min-w-[150px]"
+            >
+              <option value="all">All</option>
+              <option value="URGENT">Urgent only</option>
+              <option value="NORMAL">Normal only</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-slate-700">Sort</span>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value)}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-400 min-w-[150px]"
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
             </select>
           </label>
         </div>
       </SurfaceCard>
+    );
+
+    const sum = labSummary || {};
+    const stat = (n) => (n == null || Number.isNaN(n) ? '—' : String(n));
+
+    const labDashboardSection = (
+      <>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard
+            label="Open (no report)"
+            value={stat(sum.openWorkQueue)}
+            hint={sum.oldestOpenHours != null ? `Oldest open ≈ ${sum.oldestOpenHours}h` : 'Work queue'}
+          />
+          <StatCard label="Completed (7 days)" value={stat(sum.completedThisWeek)} hint="Reports uploaded in the last week" />
+          <StatCard label="Urgent (open)" value={stat(sum.urgentOpen)} hint="URGENT & no report yet" />
+          <StatCard label="Payment pending" value={stat(sum.pendingPayment)} hint="Awaiting patient payment" />
+        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <SurfaceCard className="p-4">
+            <h3 className="text-sm font-semibold text-slate-900">Quick links</h3>
+            <p className="mt-1 text-xs text-slate-500">Jump to lab views.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Link
+                to="/lab"
+                className="inline-flex rounded-full border border-[#14967F]/30 bg-[#14967F]/10 px-3 py-1.5 text-xs font-semibold text-[#14967F] hover:bg-[#14967F]/15"
+              >
+                Lab queue
+              </Link>
+              <Link
+                to="/lab/completed"
+                className="inline-flex rounded-full border border-emerald-500/30 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+              >
+                Completed reports
+              </Link>
+            </div>
+          </SurfaceCard>
+          <SurfaceCard className="p-4">
+            <h3 className="text-sm font-semibold text-slate-900">Workflow</h3>
+            <ol className="mt-2 list-decimal space-y-1 pl-4 text-xs text-slate-600">
+              <li>Payment must be confirmed (billing).</li>
+              <li>Start processing → upload PDF or image.</li>
+              <li>Email patient when ready (optional).</li>
+            </ol>
+          </SurfaceCard>
+          <SurfaceCard className="p-4">
+            <h3 className="text-sm font-semibold text-slate-900">Accepted uploads</h3>
+            <p className="mt-2 text-xs text-slate-600">
+              <strong>PDF</strong> or <strong>images</strong> (JPEG, PNG, etc.). Max <strong>{formatBytes(MAX_BYTES)}</strong> per file.
+            </p>
+            <p className="mt-2 text-xs text-slate-500">Use lab status, priority, and sort to narrow the list.</p>
+          </SurfaceCard>
+        </div>
+      </>
     );
 
     return (
@@ -473,6 +640,7 @@ export default function LabPage() {
               : 'Requests waiting for a report. After you upload, they appear under Completed reports in the sidebar.'
           }
         />
+        {labDashboardSection}
         {filtersCard}
 
         {loading ? (

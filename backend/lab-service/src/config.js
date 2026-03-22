@@ -18,8 +18,17 @@ module.exports = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   internalServiceToken: required('INTERNAL_SERVICE_TOKEN'),
   billingServiceBaseUrl: required('BILLING_SERVICE_BASE_URL'),
+  authServiceBaseUrl: required('AUTH_SERVICE_BASE_URL'),
   defaultLabAmount: Number(process.env.DEFAULT_LAB_AMOUNT || 300),
   /** Browser-reachable base for /uploads; defaults to local lab port so report URLs are never path-only */
   publicServiceBaseUrl: publicFromEnv || `http://localhost:${port}`,
+
+  /** Optional SMTP for patient email (see .env.example) */
+  smtpHost: (process.env.SMTP_HOST || '').trim(),
+  smtpPort: Number(process.env.SMTP_PORT || 587),
+  smtpSecure: process.env.SMTP_SECURE === 'true' || process.env.SMTP_SECURE === '1',
+  smtpUser: (process.env.SMTP_USER || '').trim(),
+  smtpPass: (process.env.SMTP_PASS || '').trim(),
+  mailFrom: (process.env.MAIL_FROM || 'noreply@hospital.local').trim(),
 };
 

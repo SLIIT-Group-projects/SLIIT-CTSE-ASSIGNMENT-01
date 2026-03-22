@@ -115,6 +115,19 @@ router.get('/me', requireAuth, async (req, res) => {
 router.get('/admin/ping', requireAuth, requireRole('ADMIN'), (req, res) => res.json({ ok: true }));
 
 /**
+ * GET /auth/internal/patients/search?q=
+ * Internal: patient user ids whose name matches (for lab dashboard search, etc.).
+ */
+router.get('/internal/patients/search', requireInternal, async (req, res) => {
+  const q = String(req.query.q || '').trim();
+  if (q.length < 2) return res.json({ ids: [] });
+  const safe = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(safe, 'i');
+  const users = await User.find({ role: 'PATIENT', name: regex }).select('_id').limit(100).lean();
+  return res.json({ ids: users.map((u) => u._id.toString()) });
+});
+
+/**
  * POST /auth/users/bulk
  * Internal endpoint for service-to-service user lookup.
  */
