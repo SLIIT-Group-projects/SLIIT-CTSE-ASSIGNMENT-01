@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { appointmentApi, billingApi, doctorApi } from '../api/client';
+import { resolveAppointmentAssetUrl } from '../utils/appointmentAssets';
+import { resolveBillingAssetUrl } from '../utils/billingAssets';
 import { useToast } from '../components/ToastProvider';
 import { EmptyState, LoadingState, PageHero, PrimaryButton, SoftButton, SurfaceCard } from '../components/ui';
-import { resolveLabFileUrl } from '../utils/labFileUrl';
+//import { resolveLabFileUrl } from '../utils/labFileUrl';
 
 export default function AppointmentDetailPage() {
   const { id } = useParams();
@@ -16,6 +18,7 @@ export default function AppointmentDetailPage() {
   const [reportFile, setReportFile] = useState(null);
   const [savingReport, setSavingReport] = useState(false);
   const [savingSlip, setSavingSlip] = useState(false);
+  const [appointmentSlipUrl, setAppointmentSlipUrl] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -30,6 +33,16 @@ export default function AppointmentDetailPage() {
         } catch {
           setDoctorName(String(a.doctorId));
         }
+      }
+      try {
+        const br = await billingApi.get('/billing/patient/bills');
+        const bills = br.data?.bills || [];
+        const match = bills.find(
+          (x) => x.billType === 'APPOINTMENT' && String(x.referenceId) === String(id)
+        );
+        setAppointmentSlipUrl(match?.paymentSlipUrl || null);
+      } catch {
+        setAppointmentSlipUrl(null);
       }
     } catch (_e) {
       notify('Failed to load appointment details.', 'error');
@@ -53,14 +66,12 @@ export default function AppointmentDetailPage() {
     try {
       const fd = new FormData();
       fd.append('report', reportFile);
-      await appointmentApi.post(`/appointments/${id}/previous-reports/upload`, fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      await appointmentApi.post(`/appointments/${id}/previous-reports/upload`, fd);
       setReportFile(null);
       await load();
       notify('Previous report uploaded.', 'success');
-    } catch (_e) {
-      notify('Could not upload previous report.', 'error');
+    } catch (e) {
+      notify(e.response?.data?.message || 'Could not upload previous report.', 'error');
     } finally {
       setSavingReport(false);
     }
@@ -71,14 +82,12 @@ export default function AppointmentDetailPage() {
     setSavingSlip(true);
     try {
       const fd = new FormData();
-      fd.append('file', file);
-      await billingApi.post(`/billing/appointments/${id}/upload-slip`, fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      fd.append('slip', file);
+      await billingApi.post(`/billing/appointments/${id}/upload-slip`, fd);
       notify('Billing slip uploaded.', 'success');
       await load();
-    } catch (_e) {
-      notify('Could not upload billing slip.', 'error');
+    } catch (e) {
+      notify(e.response?.data?.message || 'Could not upload billing slip.', 'error');
     } finally {
       setSavingSlip(false);
     }
@@ -156,6 +165,43 @@ export default function AppointmentDetailPage() {
           />
           {savingSlip ? <div className="mt-2 text-sm text-slate-500">Uploading slip...</div> : null}
         </div>
+        {appointmentSlipUrl ? (
+          <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
+            <div className="text-sm font-semibold text-slate-900">Uploaded payment slip</div>
+            <p className="mt-1 text-xs text-slate-500">Preview uses the billing service URL so it loads correctly from this app.</p>
+            {/\.pdf(\?|$)/i.test(resolveBillingAssetUrl(appointmentSlipUrl)) ? (
+              <a
+                className="mt-2 inline-block text-sm font-semibold text-teal-700 underline"
+                href={resolveBillingAssetUrl(appointmentSlipUrl)}
+                target="_blank"
+                rel="noreferrer"
+              >
+                Open PDF slip
+              </a>
+            ) : (
+              <a
+                href={resolveBillingAssetUrl(appointmentSlipUrl)}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-2 block overflow-hidden rounded-lg border border-slate-200 bg-white"
+              >
+                <img
+                  src={resolveBillingAssetUrl(appointmentSlipUrl)}
+                  alt="Your payment slip"
+                  className="max-h-48 w-full object-contain"
+                />
+              </a>
+            )}
+            <a
+              className="mt-2 inline-block text-xs text-slate-600 underline"
+              href={resolveBillingAssetUrl(appointmentSlipUrl)}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open in new tab
+            </a>
+          </div>
+        ) : null}
       </SurfaceCard>
 
       <SurfaceCard>
@@ -174,7 +220,16 @@ export default function AppointmentDetailPage() {
                     <div className="mt-2 flex items-center justify-between gap-3">
                       <div className="text-xs text-slate-400">{r.createdAt ? new Date(r.createdAt).toLocaleString() : ''}</div>
                       {r.reportUrl ? (
-                        <a className="text-sm font-semibold text-blue-700 underline" href={resolveLabFileUrl(r.reportUrl)} target="_blank" rel="noreferrer">
+
+   
+
+                        <a
+                          className="text-sm font-semibold text-blue-700 underline"
+                          href={resolveAppointmentAssetUrl(r.reportUrl)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+
                           Open Report
                         </a>
                       ) : null}

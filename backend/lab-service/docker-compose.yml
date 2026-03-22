@@ -5,6 +5,8 @@ services:
       - "4004:4004"
     env_file:
       - .env
+    volumes:
+      - lab-uploads:/app/uploads
     depends_on:
       - mongo-lab
     networks:
@@ -22,6 +24,7 @@ services:
 
 volumes:
   mongo-lab-data:
+  lab-uploads:
 
 networks:
   hm-net:

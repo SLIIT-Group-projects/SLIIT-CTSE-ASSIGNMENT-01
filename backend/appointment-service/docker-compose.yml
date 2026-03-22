@@ -5,6 +5,8 @@ services:
       - "4002:4002"
     env_file:
       - .env
+    volumes:
+      - appointment-uploads:/app/uploads
     depends_on:
       - mongo-appointment
     networks:
@@ -22,6 +24,7 @@ services:
 
 volumes:
   mongo-appointment-data:
+  appointment-uploads:
 
 networks:
   hm-net:

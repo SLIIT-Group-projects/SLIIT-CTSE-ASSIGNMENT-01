@@ -115,6 +115,7 @@ router.get('/me', requireAuth, async (req, res) => {
 router.get('/admin/ping', requireAuth, requireRole('ADMIN'), (req, res) => res.json({ ok: true }));
 
 /**
+
  * GET /auth/internal/patients/search?q=
  * Internal: patient user ids whose name matches (for lab dashboard search, etc.).
  */
@@ -125,6 +126,28 @@ router.get('/internal/patients/search', requireInternal, async (req, res) => {
   const regex = new RegExp(safe, 'i');
   const users = await User.find({ role: 'PATIENT', name: regex }).select('_id').limit(100).lean();
   return res.json({ ids: users.map((u) => u._id.toString()) });
+
+ * POST /auth/users/lookup
+ * Admin: resolve user ids to names (billing review UI).
+ */
+router.post('/users/lookup', requireAuth, requireRole('ADMIN'), async (req, res) => {
+  const schema = z.object({
+    ids: z.array(z.string().min(1)).max(200),
+  });
+  const parsed = schema.safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ message: 'Invalid payload', errors: parsed.error.flatten() });
+
+  const ids = parsed.data.ids;
+  const users = await User.find({ _id: { $in: ids } }).select('_id name email role').lean();
+  return res.json({
+    users: users.map((u) => ({
+      id: u._id.toString(),
+      name: u.name,
+      email: u.email,
+      role: u.role,
+    })),
+  });
+
 });
 
 /**

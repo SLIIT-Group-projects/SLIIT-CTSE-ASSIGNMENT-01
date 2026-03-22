@@ -49,7 +49,7 @@ const patientMedicalSchema = z.object({
  * Query:
  *   - ids=comma,separated,doctorIds
  */
-router.get('/doctor/profiles', requireAuth, requireRole('PATIENT'), async (req, res) => {
+router.get('/doctor/profiles', requireAuth, requireRole('PATIENT', 'ADMIN'), async (req, res) => {
   const idsRaw = String(req.query.ids || '')
     .split(',')
     .map((x) => x.trim())

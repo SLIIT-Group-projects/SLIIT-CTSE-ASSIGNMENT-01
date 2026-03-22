@@ -1,15 +1,11 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { doctorApi } from "../api/client";
-import StatusBadge from "../components/StatusBadge";
-import { useToast } from "../components/ToastProvider";
-import {
-  EmptyState,
-  LoadingState,
-  PageHero,
-  PrimaryButton,
-  SurfaceCard,
-} from "../components/ui";
-import { resolveLabFileUrl } from "../utils/labFileUrl";
+
+import React, { useEffect, useMemo, useState } from 'react';
+import { doctorApi } from '../api/client';
+import { resolveAppointmentAssetUrl } from '../utils/appointmentAssets';
+import StatusBadge from '../components/StatusBadge';
+import { useToast } from '../components/ToastProvider';
+import { EmptyState, LoadingState, PageHero, PrimaryButton, SurfaceCard } from '../components/ui';
+
 
 export default function DoctorAppointmentsPage() {
   const { notify } = useToast();
@@ -596,7 +592,9 @@ export default function DoctorAppointmentsPage() {
                                 {r.reportUrl ? (
                                   <a
                                     className="text-sm font-semibold text-blue-700 underline"
-                                    href={resolveLabFileUrl(r.reportUrl)}
+
+                                    href={resolveAppointmentAssetUrl(r.reportUrl)}
+
                                     target="_blank"
                                     rel="noreferrer"
                                   >

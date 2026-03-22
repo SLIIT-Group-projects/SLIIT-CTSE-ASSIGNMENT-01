@@ -10,6 +10,7 @@ const DoctorSchedule = require('../models/DoctorSchedule');
 const { requireAuth, requireRole, requireInternal } = require('../middleware/auth');
 const config = require('../config');
 const { addMinutesToHHMM, buildSlotsForRange, normalizeDateString, toMinutes } = require('../utils/timeSlots');
+const uploadPaymentSlip = require('../middleware/uploadPaymentSlip');
 
 const router = express.Router();
 const uploadsDir = path.join(__dirname, '..', '..', 'uploads', 'previous-reports');
@@ -24,14 +25,22 @@ const storage = multer.diskStorage({
   },
 });
 
+function allowImageOrPdf(file) {
+  const mime = (file.mimetype || '').toLowerCase();
+  const name = (file.originalname || '').toLowerCase();
+  if (mime === 'application/pdf') return true;
+  if (mime.startsWith('image/')) return true;
+  if (mime === 'application/octet-stream' || mime === '') {
+    return /\.(jpe?g|png|gif|webp|heic|heif|bmp|tif|tiff|pdf)$/i.test(name);
+  }
+  return false;
+}
+
 const uploadReport = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const ok =
-      file.mimetype === 'application/pdf' ||
-      file.mimetype.startsWith('image/');
-    if (!ok) return cb(new Error('Only PDF or image files are allowed'));
+    if (!allowImageOrPdf(file)) return cb(new Error('Only PDF or image files are allowed'));
     return cb(null, true);
   },
 });
@@ -411,6 +420,38 @@ router.post(
     });
     await appointment.save();
     return res.status(201).json({ ok: true, appointment });
+  }
+);
+
+/**
+ * POST /appointments/:id/payment-slip
+ * Patient uploads payment slip after billing
+ */
+router.post(
+  '/appointments/:id/payment-slip',
+  requireAuth,
+  requireRole('PATIENT'),
+  uploadPaymentSlip.single('paymentSlip'),
+  async (req, res) => {
+
+    const appointment = await Appointment.findById(req.params.id);
+
+    if (!appointment)
+      return res.status(404).json({ message: 'Appointment not found' });
+
+    if (appointment.patientId.toString() !== req.user.userId)
+      return res.status(403).json({ message: 'Forbidden' });
+
+    if (!req.file)
+      return res.status(400).json({ message: 'Payment slip required' });
+
+    const paymentSlipUrl =
+      `${config.publicServiceBaseUrl}/uploads/payment-slips/${req.file.filename}`;
+
+    return res.status(201).json({
+      message: "Payment slip uploaded",
+      paymentSlipUrl
+    });
   }
 );
 

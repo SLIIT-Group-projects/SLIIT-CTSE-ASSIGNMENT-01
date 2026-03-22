@@ -14,8 +14,17 @@ module.exports = {
   jwtSecret: required('JWT_SECRET'),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   internalServiceToken: required('INTERNAL_SERVICE_TOKEN'),
+  authServiceBaseUrl: process.env.AUTH_SERVICE_BASE_URL || 'http://auth-service:4001',
   appointmentServiceBaseUrl: required('APPOINTMENT_SERVICE_BASE_URL'),
+  doctorServiceBaseUrl: process.env.DOCTOR_SERVICE_BASE_URL || 'http://doctor-service:4003',
   labServiceBaseUrl: required('LAB_SERVICE_BASE_URL'),
   publicServiceBaseUrl: process.env.PUBLIC_SERVICE_BASE_URL || '',
+  defaultAppointmentAmount: Number(process.env.DEFAULT_APPOINTMENT_AMOUNT || 500),
+  smtpHost: process.env.SMTP_HOST || '',
+  smtpPort: Number(process.env.SMTP_PORT || 587),
+  smtpSecure: process.env.SMTP_SECURE === 'true',
+  smtpUser: process.env.SMTP_USER || '',
+  smtpPass: process.env.SMTP_PASS || '',
+  smtpFrom: process.env.SMTP_FROM || '',
 };
 

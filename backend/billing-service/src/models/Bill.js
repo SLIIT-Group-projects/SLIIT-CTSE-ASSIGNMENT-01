@@ -11,6 +11,8 @@ const billSchema = new mongoose.Schema(
     referenceId: { type: String, required: true, index: true }, // appointmentId or labRequestId
 
     patientId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+    patientName: { type: String, default: '' },
+    patientEmail: { type: String, default: '' },
     doctorId: { type: mongoose.Schema.Types.ObjectId, default: null, index: true },
 
     amount: { type: Number, required: true },

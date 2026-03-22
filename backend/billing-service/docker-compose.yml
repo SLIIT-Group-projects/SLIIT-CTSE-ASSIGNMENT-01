@@ -5,6 +5,8 @@ services:
       - "4005:4005"
     env_file:
       - .env
+    volumes:
+      - billing-uploads:/app/uploads
     depends_on:
       - mongo-billing
     networks:
@@ -22,6 +24,7 @@ services:
 
 volumes:
   mongo-billing-data:
+  billing-uploads:
 
 networks:
   hm-net:

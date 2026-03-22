@@ -1,15 +1,12 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { appointmentApi, billingApi, doctorApi, labApi } from "../api/client";
-import StatusBadge from "../components/StatusBadge";
-import { useToast } from "../components/ToastProvider";
-import {
-  EmptyState,
-  PageHero,
-  SoftButton,
-  SurfaceCard,
-} from "../components/ui";
-import { resolveLabFileUrl } from "../utils/labFileUrl";
+
+import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { appointmentApi, billingApi, doctorApi, labApi } from '../api/client';
+import { resolveLabAssetUrl } from '../utils/labAssets';
+import StatusBadge from '../components/StatusBadge';
+import { useToast } from '../components/ToastProvider';
+import { EmptyState, PageHero, SoftButton, SurfaceCard } from '../components/ui';
+
 
 export default function AppointmentsPage() {
   const navigate = useNavigate();
@@ -77,18 +74,14 @@ export default function AppointmentsPage() {
   async function uploadSlip(appointment, file) {
     try {
       const fd = new FormData();
-      fd.append("file", file);
-      await billingApi.post(
-        `/billing/appointments/${appointment._id}/upload-slip`,
-        fd,
-        {
-          headers: { "Content-Type": "multipart/form-data" },
-        },
-      );
+
+      fd.append('slip', file);
+      await billingApi.post(`/billing/appointments/${appointment._id}/upload-slip`, fd);
       await refreshAll();
-      notify("Payment slip uploaded", "success");
-    } catch (_e) {
-      notify("Could not upload payment slip", "error");
+      notify('Payment slip uploaded', 'success');
+    } catch (e) {
+      notify(e.response?.data?.message || 'Could not upload payment slip', 'error');
+
     }
   }
 
@@ -354,7 +347,9 @@ export default function AppointmentsPage() {
                   </div>
                   <a
                     className="text-sm font-semibold text-blue-700 underline"
-                    href={resolveLabFileUrl(r.reportUrl)}
+
+                    href={resolveLabAssetUrl(r.reportUrl)}
+
                     target="_blank"
                     rel="noreferrer"
                   >

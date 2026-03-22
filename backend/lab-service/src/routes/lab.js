@@ -228,6 +228,7 @@ router.get('/lab/requests', requireAuth, requireRole('LAB_TECH'), async (req, re
 });
 
 /**
+
  * GET /lab/dashboard/summary
  * LAB_TECH aggregate counts (not affected by list filters).
  */
@@ -261,6 +262,15 @@ router.get('/lab/dashboard/summary', requireAuth, requireRole('LAB_TECH'), async
     pendingPayment,
     oldestOpenHours,
   });
+
+ * GET /lab/requests/:id
+ * Admin views a single lab request (billing / verification UI).
+ */
+router.get('/lab/requests/:id', requireAuth, requireRole('ADMIN'), async (req, res) => {
+  const labRequest = await LabRequest.findById(req.params.id).lean();
+  if (!labRequest) return res.status(404).json({ message: 'Lab request not found' });
+  return res.json({ labRequest });
+
 });
 
 /**

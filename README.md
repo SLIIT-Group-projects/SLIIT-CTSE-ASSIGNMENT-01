@@ -35,6 +35,7 @@ All services must use the same `JWT_SECRET` and `INTERNAL_SERVICE_TOKEN`.
 ## Quick start (local demo)
 1. Start microservices with Docker:
    - `docker compose up --build`
+   - Payment slips and other uploaded files are stored in **named Docker volumes** (`billing-uploads`, `appointment-uploads`, `lab-uploads`) so they survive container restarts. Do not use `docker compose down -v` unless you intend to delete that data.
 2. Start the frontend:
    - `cd frontend`
    - `npm start`

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import StatusBadge from '../components/StatusBadge';
 import { billingApi } from '../api/client';
+import { resolveBillingAssetUrl } from '../utils/billingAssets';
 import { EmptyState, LoadingState, PageHero, SurfaceCard } from '../components/ui';
 
 export default function BillingPage() {
@@ -59,7 +60,12 @@ export default function BillingPage() {
                     </td>
                     <td>
                       {b.paymentSlipUrl ? (
-                        <a className="text-sm font-semibold text-blue-700 underline" href={b.paymentSlipUrl} target="_blank" rel="noreferrer">
+                        <a
+                          className="text-sm font-semibold text-blue-700 underline"
+                          href={resolveBillingAssetUrl(b.paymentSlipUrl)}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
                           View
                         </a>
                       ) : (

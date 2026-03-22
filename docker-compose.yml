@@ -1,5 +1,6 @@
 services:
   auth-service:
+    platform: linux/amd64
     build: ./backend/auth-service
     ports:
       - "4001:4001"
@@ -11,17 +12,21 @@ services:
       - hm-net
 
   appointment-service:
+    platform: linux/amd64
     build: ./backend/appointment-service
     ports:
       - "4002:4002"
     env_file:
       - ./backend/appointment-service/.env
+    volumes:
+      - appointment-uploads:/app/uploads
     depends_on:
       - mongo-appointment
     networks:
       - hm-net
 
   doctor-service:
+    platform: linux/amd64
     build: ./backend/doctor-service
     ports:
       - "4003:4003"
@@ -33,28 +38,35 @@ services:
       - hm-net
 
   lab-service:
+    platform: linux/amd64
     build: ./backend/lab-service
     ports:
       - "4004:4004"
     env_file:
       - ./backend/lab-service/.env
+    volumes:
+      - lab-uploads:/app/uploads
     depends_on:
       - mongo-lab
     networks:
       - hm-net
 
   billing-service:
+    platform: linux/amd64
     build: ./backend/billing-service
     ports:
       - "4005:4005"
     env_file:
       - ./backend/billing-service/.env
+    volumes:
+      - billing-uploads:/app/uploads
     depends_on:
       - mongo-billing
     networks:
       - hm-net
 
   api-gateway:
+    platform: linux/amd64
     build: ./backend/api-gateway
     ports:
       - "4000:4000"
@@ -70,6 +82,7 @@ services:
       - hm-net
 
   mongo-auth:
+    platform: linux/amd64
     image: mongo:7
     restart: unless-stopped
     ports:
@@ -80,6 +93,7 @@ services:
       - hm-net
 
   mongo-appointment:
+    platform: linux/amd64
     image: mongo:7
     restart: unless-stopped
     ports:
@@ -90,6 +104,7 @@ services:
       - hm-net
 
   mongo-doctor:
+    platform: linux/amd64
     image: mongo:7
     restart: unless-stopped
     ports:
@@ -100,6 +115,7 @@ services:
       - hm-net
 
   mongo-lab:
+    platform: linux/amd64
     image: mongo:7
     restart: unless-stopped
     ports:
@@ -110,6 +126,7 @@ services:
       - hm-net
 
   mongo-billing:
+    platform: linux/amd64
     image: mongo:7
     restart: unless-stopped
     ports:
@@ -128,3 +145,8 @@ volumes:
   mongo-doctor-data:
   mongo-lab-data:
   mongo-billing-data:
+  appointment-uploads:
+  lab-uploads:
+  billing-uploads:
+
+
