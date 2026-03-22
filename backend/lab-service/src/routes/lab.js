@@ -262,7 +262,9 @@ router.get('/lab/dashboard/summary', requireAuth, requireRole('LAB_TECH'), async
     pendingPayment,
     oldestOpenHours,
   });
+});
 
+/**
  * GET /lab/requests/:id
  * Admin views a single lab request (billing / verification UI).
  */

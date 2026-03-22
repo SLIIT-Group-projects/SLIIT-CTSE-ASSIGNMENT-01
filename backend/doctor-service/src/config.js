@@ -16,6 +16,6 @@ module.exports = {
   internalServiceToken: required('INTERNAL_SERVICE_TOKEN'),
   appointmentServiceBaseUrl: required('APPOINTMENT_SERVICE_BASE_URL'),
   labServiceBaseUrl: required('LAB_SERVICE_BASE_URL'),
-  authServiceBaseUrl: required('AUTH_SERVICE_BASE_URL'),
+  authServiceBaseUrl: process.env.AUTH_SERVICE_BASE_URL || 'http://auth-service:4001',
 };
 

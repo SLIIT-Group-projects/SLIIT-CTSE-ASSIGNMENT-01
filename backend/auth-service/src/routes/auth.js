@@ -126,7 +126,9 @@ router.get('/internal/patients/search', requireInternal, async (req, res) => {
   const regex = new RegExp(safe, 'i');
   const users = await User.find({ role: 'PATIENT', name: regex }).select('_id').limit(100).lean();
   return res.json({ ids: users.map((u) => u._id.toString()) });
+});
 
+/**
  * POST /auth/users/lookup
  * Admin: resolve user ids to names (billing review UI).
  */

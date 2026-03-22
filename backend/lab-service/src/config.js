@@ -18,7 +18,7 @@ module.exports = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   internalServiceToken: required('INTERNAL_SERVICE_TOKEN'),
   billingServiceBaseUrl: required('BILLING_SERVICE_BASE_URL'),
-  authServiceBaseUrl: required('AUTH_SERVICE_BASE_URL'),
+  authServiceBaseUrl: process.env.AUTH_SERVICE_BASE_URL || 'http://auth-service:4001',
   defaultLabAmount: Number(process.env.DEFAULT_LAB_AMOUNT || 300),
   /** Browser-reachable base for /uploads; defaults to local lab port so report URLs are never path-only */
   publicServiceBaseUrl: publicFromEnv || `http://localhost:${port}`,
