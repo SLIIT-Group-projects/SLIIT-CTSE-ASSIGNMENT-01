@@ -633,7 +633,7 @@ export default function LabPage() {
     return (
       <div className="space-y-5">
         <PageHero
-          title={labTechCompletedOnly ? 'Completed lab reports' : 'Lab queue'}
+          title={labTechCompletedOnly ? 'test1' : 'test2'}
           subtitle={
             labTechCompletedOnly
               ? 'Each row shows a short summary. Expand with the chevron for full details and replace upload.'
